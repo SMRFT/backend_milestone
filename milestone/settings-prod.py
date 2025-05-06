@@ -84,16 +84,35 @@ CORS_ALLOWED_ORIGINS = [
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
+import certifi
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+
+ENV_TYPE = os.environ.get("ENV_CLASSIFICATION", "local")
+MILESTONE_DB_NAME = os.environ.get("MILESTONE_DB_NAME", "Milestone")
+
+if ENV_TYPE == "local":
+    DB_HOST = os.environ.get("GLOBAL_DB_HOST")
+    CLIENT_OPTIONS = {
+        'host': DB_HOST,
+        'tls': True,
+        'tlsCAFile': certifi.where(),
+    }
+else:  # test
+    DB_HOST = os.environ.get("GLOBAL_DB_HOST")
+    CLIENT_OPTIONS = {
+        'host': DB_HOST,
+        # No TLS options for test env
+    }
+
 DATABASES = {
     'default': {
         'ENGINE': 'djongo',
-        'NAME': 'Milestone',
+        'NAME': MILESTONE_DB_NAME,
         'ENFORCE_SCHEMA': False,
-        'CLIENT': {
-            'host': 'mongodb://admin:ifS2nTs6vm@103.205.141.208:27017/',
-            'tls': True,
-            'tlsAllowInvalidCertificates': True,  # Skip cert validation
-        }
+        'CLIENT': CLIENT_OPTIONS
     }
 }
 

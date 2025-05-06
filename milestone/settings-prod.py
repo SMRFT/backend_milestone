@@ -83,8 +83,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:8000",
     "https://milestone.shinova.in",  # <- removed the trailing slash
-    "https://env-5683222.in1.cloudlets.co.in"
+    "https://env-5683222.in1.cloudlets.co.in",
 ]
+
+
 
 
 # Database

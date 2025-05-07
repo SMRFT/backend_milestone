@@ -25,12 +25,13 @@ SECRET_KEY = 'django-insecure-3=b_*0^w%c2gu%4^jd1dc*wpww17o*v6h#)ewt!*)ybt)i(k3n
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = [
-    'env-5683222.in1.cloudlets.co.in',  # Add the domain causing the error
-    '127.0.0.1',  # Localhost for development
-    'localhost',
-]
 
+
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    'node223383-shinova.in1.cloudlets.co.in',
+]
 
 # Application definition
 

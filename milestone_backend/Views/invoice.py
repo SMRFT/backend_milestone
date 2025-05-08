@@ -24,7 +24,7 @@ load_dotenv()  # Load from .env if present
 env_type = os.environ.get("ENV_CLASSIFICATION", "local")
 
 mongo_uri = os.environ.get("GLOBAL_DB_HOST")
-db_name = os.environ.get("MILESTONE_DB_NAME")
+db_name = os.environ.get("MILESTONE_DB_NAME", "Milestone")
 
 if env_type in ["test", "prod"]:
     client = MongoClient(mongo_uri)
@@ -111,7 +111,6 @@ def extract_numeric_part(billing_no):
 @permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
 def update_payment(request):
     db = client[db_name]          
-    fs = gridfs.GridFS(db)
     therapy_collection = db['milestone_backend_therapybilling']
     assessment_collection = db['milestone_backend_patientassessment']
 
@@ -168,6 +167,9 @@ def update_payment(request):
     new_bill["billing_no"] = new_billing_no
     new_bill["amount_paid"] = paid_amount
     new_bill["therapy_charge"] = remaining_amount  # Update therapy_charge with previous remaining_amount
+    new_bill["total_amount"] = remaining_amount  # Update total_amount with previous remaining_amount
+    new_bill["others"] = ""    
+    new_bill["othersprice"] = 0  
     new_bill["adjusted_charge"] = new_bill["therapy_charge"] - discount  # Adjusted charge after discount
 
     # Calculate new remaining_amount

@@ -167,7 +167,7 @@ def update_payment(request):
     new_bill["billing_no"] = new_billing_no
     new_bill["amount_paid"] = paid_amount
     new_bill["therapy_charge"] = remaining_amount  # Update therapy_charge with previous remaining_amount
-    new_bill["total_amount"] = remaining_amount  # Update total_amount with previous remaining_amount
+    new_bill["total_amount"] = new_bill["therapy_charge"]  # Update total_amount with previous remaining_amount
     new_bill["others"] = ""    
     new_bill["othersprice"] = 0  
     new_bill["adjusted_charge"] = new_bill["therapy_charge"] - discount  # Adjusted charge after discount

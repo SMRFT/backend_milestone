@@ -27,7 +27,7 @@ env_type = os.environ.get("ENV_CLASSIFICATION", "local")
 mongo_uri = os.environ.get("GLOBAL_DB_HOST")
 db_name = os.environ.get("MILESTONE_DB_NAME")
 
-if env_type == "test":
+if env_type in ["test", "prod"]:
     client = MongoClient(mongo_uri)
 else:
     client = MongoClient(mongo_uri, tls=True, tlsCAFile=certifi.where())

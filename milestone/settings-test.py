@@ -29,7 +29,9 @@ ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     'node223383-shinova.in1.cloudlets.co.in',
-    'shinova.in1.cloudlets.co.in'
+    'shinova.in1.cloudlets.co.in',
+    "env-5683222.in1.cloudlets.co.in",
+    "test.shinova.in"
 ]
 
 
@@ -83,7 +85,8 @@ CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:8000",
-    "https://milestone.shinova.in"  # <- removed the trailing slash
+    "https://milestone.shinova.in" ,
+    'https://test.shinova.in'# <- removed the trailing slash
 ]
 
 

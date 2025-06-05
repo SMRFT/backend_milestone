@@ -23,7 +23,7 @@ load_dotenv()  # Load from .env if present
 
 env_type = os.environ.get("ENV_CLASSIFICATION", "local")
 
-mongo_uri = os.environ.get("GLOBAL_DB_HOST")
+mongo_uri = os.environ.get("MILESTONE_DB_HOST")
 db_name = os.environ.get("MILESTONE_DB_NAME", "Milestone")
 
 if env_type in ["test", "prod"]:
@@ -53,7 +53,7 @@ def pendingPayment(request):
 
 from django.http import JsonResponse
 from django.utils.timezone import now
-from ..models import TherapyBilling, PatientAssessment
+from ..models import TherapyBilling, PatientAssessment,OthersBilling
 import re
 
 def get_financial_year():
@@ -76,6 +76,8 @@ def get_latest_billing_no(request):
     # Fetch the latest billing numbers from both models for the current financial year
     latest_therapy_billing = TherapyBilling.objects.filter(billing_no__startswith=prefix).order_by('-billing_no').first()
     latest_assessment_billing = PatientAssessment.objects.filter(billing_no__startswith=prefix).order_by('-billing_no').first()
+    latest_others_billing = OthersBilling.objects.filter(billing_no__startswith=prefix).order_by('-billing_no').first()
+
 
     latest_billing_no = 0  # Default start value
 
@@ -85,6 +87,9 @@ def get_latest_billing_no(request):
     
     if latest_assessment_billing and latest_assessment_billing.billing_no:
         latest_billing_no = max(latest_billing_no, extract_numeric_part(latest_assessment_billing.billing_no))
+        
+    if latest_others_billing and latest_others_billing.billing_no:
+        latest_billing_no = max(latest_billing_no, extract_numeric_part(latest_others_billing.billing_no))
 
     # Generate the new billing number with six-digit counter
     new_billing_no = f"{prefix}{str(latest_billing_no + 1).zfill(6)}"
@@ -167,9 +172,6 @@ def update_payment(request):
     new_bill["billing_no"] = new_billing_no
     new_bill["amount_paid"] = paid_amount
     new_bill["therapy_charge"] = remaining_amount  # Update therapy_charge with previous remaining_amount
-    new_bill["total_amount"] = new_bill["therapy_charge"]  # Update total_amount with previous remaining_amount
-    new_bill["others"] = ""    
-    new_bill["othersprice"] = 0  
     new_bill["adjusted_charge"] = new_bill["therapy_charge"] - discount  # Adjusted charge after discount
 
     # Calculate new remaining_amount

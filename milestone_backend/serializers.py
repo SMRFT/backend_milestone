@@ -68,6 +68,20 @@ class TherapyBillingSerializer(serializers.ModelSerializer):
         model = TherapyBilling
         fields = "__all__"
 
+from rest_framework import serializers
+from .models import OthersBilling
+from bson import ObjectId  # Import for handling MongoDB ObjectId
+
+class OthersBillingSerializer(serializers.ModelSerializer):
+    date = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", required=False)  # Include time in format
+    id = serializers.SerializerMethodField()  # Convert ObjectId to string
+
+    def get_id(self, obj):
+        return str(obj.id) if isinstance(obj.id, ObjectId) else obj.id  # Convert ObjectId to string
+
+    class Meta:
+        model = OthersBilling
+        fields = "__all__"
 
 from rest_framework import serializers
 from .models import MCHATResponse

@@ -1,7 +1,7 @@
 from django.urls import path
 from . import views 
 from .views import pediatric_assessment_list,get_patients_report
-from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask
+from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others
 
 
 urlpatterns = [
@@ -40,4 +40,6 @@ urlpatterns = [
     path('get-cbcl/<str:childName>/', cbcl.get_cbcl_data, name='get_cbcl_by_patient'),
     path('save-consulting-doctor/', consultingdoctors.save_consulting_doctor, name='save_consulting_doctor'),
     path('get-consulting-doctors/', consultingdoctors.get_consulting_doctors, name='get_consulting_doctors'),
+    path('others_billing/', Others.others_billing, name='others_billing'), 
+    path('others-reports/', Others.get_others_reports, name='get_others_reports'),
 ]

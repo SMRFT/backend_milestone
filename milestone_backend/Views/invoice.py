@@ -24,7 +24,7 @@ load_dotenv()  # Load from .env if present
 env_type = os.environ.get("ENV_CLASSIFICATION", "local")
 
 mongo_uri = os.environ.get("MILESTONE_DB_HOST")
-db_name = os.environ.get("MILESTONE_DB_NAME", "Milestone")
+db_name = os.environ.get("GLOBAl_DB_HOST", "Milestone")
 
 if env_type in ["test", "prod"]:
     client = MongoClient(mongo_uri)

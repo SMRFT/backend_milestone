@@ -3,12 +3,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from ..models import MCHATResponse
 from ..serializers import MCHATResponseSerializer
-from ..auth.permissions import SkipPermissionsIfDisabled
-from pyauth.auth import HasRoleAndDataPermission
+from pyauth.auth import HasRolePermission
 
 
 @api_view(['POST'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def saveMCHATResponses(request):
     """
     Save M-CHAT responses for a patient, including the calculated risk level and total score.
@@ -71,7 +70,7 @@ from ..models import MCHATResponse
 from ..serializers import MCHATResponseSerializer
 
 @api_view(['GET'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def getMCHATResponse(request, registration_number):
     """
     Fetch M-CHAT-R responses for a given patient using their registration number.

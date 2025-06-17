@@ -9,14 +9,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from ..serializers import EmployeeRegistrationSerializer
 from django.contrib.auth.hashers import make_password
-
-
-from ..auth.permissions import SkipPermissionsIfDisabled
-from pyauth.auth import HasRoleAndDataPermission
+from pyauth.auth import HasRolePermission
 
 
 @api_view(['POST'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def employeeregistration(request):
     serializer = EmployeeRegistrationSerializer(data=request.data)
     if serializer.is_valid():
@@ -29,7 +26,7 @@ def employeeregistration(request):
 
 @csrf_exempt
 @api_view(['POST'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def LoginView(request):
     email = request.data.get('email')
     password = request.data.get('password')

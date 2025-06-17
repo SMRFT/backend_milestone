@@ -6,8 +6,7 @@ from urllib.parse import quote_plus
 from django.views.decorators.http import require_GET
 from django.http import JsonResponse
 from rest_framework.decorators import api_view , permission_classes
-from ..auth.permissions import SkipPermissionsIfDisabled
-from pyauth.auth import HasRoleAndDataPermission
+from pyauth.auth import HasRolePermission
 from pymongo import MongoClient
 import gridfs
 
@@ -30,7 +29,7 @@ else:
 
 @require_GET
 @api_view(['GET'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def DevelopmentalTask(request):
     # URL-encode the password¸
     # Use f-string to inject the encoded password into the connection string
@@ -51,7 +50,7 @@ from datetime import datetime
 from milestone_backend.models import DevelopmentalScreeningTask
 
 @api_view(['POST'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def save_developmental_screening_tasks(request):
     if request.method == 'POST':
         data = request.data
@@ -88,7 +87,7 @@ from ..models import DevelopmentalScreeningTask
 from ..serializers import DevelopmentalScreeningTaskSerializer
 
 @api_view(['GET'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_developmental_screening_tasks(request, patient_name=None):
     try:
         # Check if patient_name is provided as a URL parameter

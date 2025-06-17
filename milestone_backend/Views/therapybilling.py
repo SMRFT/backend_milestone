@@ -9,15 +9,12 @@ from ..models import OthersBilling
 from ..serializers import OthersBillingSerializer
 from ..models import TherapyBilling
 from ..serializers import TherapyBillingSerializer
-
-
-from ..auth.permissions import SkipPermissionsIfDisabled
-from pyauth.auth import HasRoleAndDataPermission
+from pyauth.auth import HasRolePermission
 
 
 @csrf_exempt
 @api_view(['POST'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def therapy_billing(request):
     from .invoice import get_latest_billing_no  # Move import inside function
 
@@ -42,7 +39,7 @@ def therapy_billing(request):
 
 
 @api_view(['GET'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_therapy_reports(request):
     from_date_str = request.GET.get('from_date')
     to_date_str = request.GET.get('to_date')

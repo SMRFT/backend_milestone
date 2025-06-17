@@ -3,15 +3,12 @@ from rest_framework.decorators import api_view , permission_classes
 from rest_framework import status
 from ..models import CBCL
 from ..serializers import CBCLSerializer
-
-
-from ..auth.permissions import SkipPermissionsIfDisabled
-from pyauth.auth import HasRoleAndDataPermission
+from pyauth.auth import HasRolePermission
 
 
 
 @api_view(['POST'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def submit_cbcl(request):
     if request.method == 'POST':
         serializer = CBCLSerializer(data=request.data)
@@ -24,7 +21,7 @@ def submit_cbcl(request):
 
 
 @api_view(['GET'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_cbcl_data(request, childName=None):
     try:
         # Check if childName is provided as a URL parameter

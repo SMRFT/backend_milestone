@@ -8,15 +8,11 @@ from ..models import ChildLanguageAssessment
 from ..serializers import ChildLanguageAssessmentSerializer
 from django.utils.dateparse import parse_date
 from django.utils import timezone
-
-
-
-from ..auth.permissions import SkipPermissionsIfDisabled
-from pyauth.auth import HasRoleAndDataPermission
+from pyauth.auth import HasRolePermission
 
 @csrf_exempt  # Disable CSRF check for this API endpoint (Optional, but you might need it for testing)
 @api_view(['POST'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def child_language_assessment(request):
     if request.method == 'POST':
         try:
@@ -79,7 +75,7 @@ def child_language_assessment(request):
 
 
 @api_view(['GET'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_childlanguage_reports(request):
     # Extract the 'fromDate' and 'toDate' query parameters
     from_date_str = request.GET.get('fromDate')

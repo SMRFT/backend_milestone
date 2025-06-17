@@ -10,8 +10,7 @@ from urllib.parse import quote_plus
 import json
 import re
 from datetime import datetime, timezone
-from ..auth.permissions import SkipPermissionsIfDisabled
-from pyauth.auth import HasRoleAndDataPermission
+from pyauth.auth import HasRolePermission
 from pymongo import MongoClient
 import gridfs
 
@@ -23,7 +22,7 @@ load_dotenv()  # Load from .env if present
 
 env_type = os.environ.get("ENV_CLASSIFICATION", "local")
 
-mongo_uri = os.environ.get("GLOBAL_DB_HOST")
+mongo_uri = os.environ.get("MILESTONE_DB_HOST")
 db_name = os.environ.get("MILESTONE_DB_NAME", "Milestone")
 
 if env_type in ["test", "prod"]:
@@ -32,7 +31,7 @@ else:
     client = MongoClient(mongo_uri, tls=True, tlsCAFile=certifi.where())
 
 @api_view(['GET'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def pendingPayment(request):
     # Get the latest billing entry for each unique combination of specified fields
     latest_bills = (
@@ -113,7 +112,7 @@ def extract_numeric_part(billing_no):
     return int(match.group(1)) if match else 0
 
 @api_view(['PATCH'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def update_payment(request):
     db = client[db_name]          
     therapy_collection = db['milestone_backend_therapybilling']

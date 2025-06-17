@@ -3,12 +3,11 @@ from django.views.decorators.csrf import csrf_exempt
 from ..models import ConsultingDoctor
 import json
 from rest_framework.decorators import api_view , permission_classes
-from ..auth.permissions import SkipPermissionsIfDisabled
-from pyauth.auth import HasRoleAndDataPermission
+from pyauth.auth import HasRolePermission
 
 @csrf_exempt
 @api_view(['POST'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def save_consulting_doctor(request):
     if request.method == 'POST':
         try:

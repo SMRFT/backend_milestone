@@ -12,8 +12,7 @@ from django.http import JsonResponse
 from pymongo import MongoClient
 from django.http import JsonResponse
 from ..models import Registration
-from ..auth.permissions import SkipPermissionsIfDisabled
-from pyauth.auth import HasRoleAndDataPermission
+from pyauth.auth import HasRolePermission
 import gridfs
 
 import os
@@ -24,7 +23,7 @@ load_dotenv()  # Load from .env if present
 
 env_type = os.environ.get("ENV_CLASSIFICATION", "local")
 
-mongo_uri = os.environ.get("GLOBAL_DB_HOST")
+mongo_uri = os.environ.get("MILESTONE_DB_HOST")
 db_name = os.environ.get("MILESTONE_DB_NAME", "Milestone")
 
 if env_type in ["test", "prod"]:
@@ -33,7 +32,7 @@ else:
     client = MongoClient(mongo_uri, tls=True, tlsCAFile=certifi.where())
 
 @api_view(['POST'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def create_registration(request):
     serializer = RegistrationSerializer(data=request.data)
     
@@ -44,7 +43,7 @@ def create_registration(request):
 
 
 @api_view(['GET'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_all_patients(request):
     # Get today's date
     today = datetime.utcnow().date()
@@ -70,7 +69,7 @@ def get_all_patients(request):
 
 
 @api_view(['GET'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])    
+@permission_classes([HasRolePermission])    
 def get_all_assessments(request):
     db = client[db_name]          
     fs = gridfs.GridFS(db)       
@@ -103,7 +102,7 @@ def get_all_assessments(request):
 
 
 @api_view(['POST'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def save_assessments(request):
     if request.method == 'POST':
         serializer = PatientAssessmentSerializer(data=request.data)
@@ -117,7 +116,7 @@ def save_assessments(request):
 
 
 @api_view(['GET'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_assessments(request):
     # Retrieve all patient assessments
     assessments = PatientAssessment.objects.all()
@@ -133,7 +132,7 @@ def get_assessments(request):
 
 # To get the next registration number
 @api_view(['GET'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_next_registration_number(request):
     last_reg = Registration.objects.all().order_by('id').last()
     if last_reg:
@@ -148,7 +147,7 @@ def get_next_registration_number(request):
 
 
 @api_view(['GET'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_latest_registration_number(request):
     # Fetch the latest registration number from the database
     latest_registration = Registration.objects.aggregate(Max('registration_number'))

@@ -8,12 +8,10 @@ from django.http import JsonResponse
 from datetime import datetime
 from ..models import Registration
 from ..serializers import RegistrationSerializer
-
-from ..auth.permissions import SkipPermissionsIfDisabled
-from pyauth.auth import HasRoleAndDataPermission
+from pyauth.auth import HasRolePermission
 
 @api_view(['POST'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def register_referral_doctor(request):
     if request.method == 'POST':
         serializer = ReferralDoctorSerializer(data=request.data)
@@ -23,7 +21,7 @@ def register_referral_doctor(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_referral_doctors(request):
     if request.method == 'GET':
         doctors = ReferralDoctor.objects.all()
@@ -32,7 +30,7 @@ def get_referral_doctors(request):
     
 
 @api_view(['GET'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_referrals(request):
     try:
         # Get the date range from query parameters

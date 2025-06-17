@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from datetime import datetime, timezone, timedelta
 from ..models import OthersBilling
 from ..serializers import OthersBillingSerializer
-from pyauth.auth import HasRoleAndDataPermission
+from pyauth.auth import HasRolePermission
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from datetime import datetime, timezone, timedelta
@@ -15,7 +15,7 @@ from datetime import datetime, timezone, timedelta
 
 @csrf_exempt
 @api_view(['POST'])
-@permission_classes([HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def others_billing(request):
     from .invoice import get_latest_billing_no  # Move import inside function
 
@@ -41,7 +41,7 @@ def others_billing(request):
 
 
 @api_view(['GET'])
-@permission_classes([HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_others_reports(request):
     from_date_str = request.GET.get('from_date')
     to_date_str = request.GET.get('to_date')

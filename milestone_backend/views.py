@@ -9,23 +9,17 @@ import logging
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-
-#models
 from .models import SkillTestResult
 from .models import PediatricAssessment
 from .models import Registration
 from .models import PediatricAssessment
 from .models import PatientAssessment
-
-#serializers
 from .serializers import RegistrationSerializer,PatientAssessmentSerializer,PediatricAssessmentSerializer
 from .serializers import PatientAssessmentSerializer
-
-from .auth.permissions import SkipPermissionsIfDisabled
-from pyauth.auth import HasRoleAndDataPermission
+from pyauth.auth import HasRolePermission
 
 @api_view(['GET'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_patients_report(request):
     start_date_str = request.GET.get('start_date')
     end_date_str = request.GET.get('end_date')
@@ -74,7 +68,7 @@ def get_patients_report(request):
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def PediatricAssessmentView(request):
     if request.method == 'POST':
         serializer = PediatricAssessmentSerializer(data=request.data)
@@ -86,7 +80,7 @@ def PediatricAssessmentView(request):
 
 # GET method to retrieve all pediatric assessments
 @api_view(['GET'])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def pediatric_assessment_list(request):
     if request.method == 'GET':
         assessments = PediatricAssessment.objects.all()  # Fetch all records
@@ -98,7 +92,7 @@ def pediatric_assessment_list(request):
 logger = logging.getLogger(__name__)
 @csrf_exempt
 @require_http_methods(["POST", "GET"])
-@permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def save_patient_skilltest(request):
     if request.method == "POST":
         try:

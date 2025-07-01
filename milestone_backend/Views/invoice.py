@@ -115,35 +115,27 @@ def extract_numeric_part(billing_no):
 @api_view(['PATCH'])
 @permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
 def update_payment(request):
-    db = client[db_name]          
+    db = client[db_name]
     therapy_collection = db['milestone_backend_therapybilling']
     assessment_collection = db['milestone_backend_patientassessment']
-
     data = json.loads(request.body)
     billing_no = data.get('billing_no')
     paid_amount = float(data.get('paid_amount', 0))
     discount = float(data.get('discount', 0))
     discount_remarks = data.get('discount_remarks', "")
-
+    payment_method = data.get('payment_method', "")
     if not billing_no or paid_amount < 0 or discount < 0:
         return JsonResponse({'error': 'Invalid billing number, amount, or discount.'}, status=400)
-
     # Fetch the existing bill
     patient = therapy_collection.find_one({'billing_no': billing_no})
     if not patient:
         return JsonResponse({'error': 'Patient not found.'}, status=404)
-
     remaining_amount = float(patient.get('remaining_amount', 0))
-    adjusted_charge = float(patient.get('adjusted_charge', 0))
-    amount_paid = float(patient.get('amount_paid', 0))
-
     if paid_amount + discount > remaining_amount:
         return JsonResponse({'error': 'Total payment + discount exceeds remaining balance.'}, status=400)
-
     # Determine financial year and prefix
     current_financial_year = get_financial_year()
     prefix = f"MDC{current_financial_year}/"
-
     # Fetch latest billing_no for the current financial year
     latest_therapy = therapy_collection.find_one(
         {"billing_no": {"$regex": f"^{prefix}"}},
@@ -153,19 +145,14 @@ def update_payment(request):
         {"billing_no": {"$regex": f"^{prefix}"}},
         sort=[("billing_no", -1)]
     )
-
     latest_billing_no = 0
-
     # Extract numeric part from latest billing numbers
     if latest_therapy and latest_therapy.get("billing_no"):
         latest_billing_no = max(latest_billing_no, extract_numeric_part(latest_therapy["billing_no"]))
-
     if latest_assessment and latest_assessment.get("billing_no"):
         latest_billing_no = max(latest_billing_no, extract_numeric_part(latest_assessment["billing_no"]))
-
     # Generate the new billing number with six digits
     new_billing_no = f"{prefix}{str(latest_billing_no + 1).zfill(6)}"
-
     # Copy patient data to create a new bill
     new_bill = patient.copy()
     new_bill.pop("_id", None)  # Remove MongoDB _id to avoid duplication
@@ -173,17 +160,14 @@ def update_payment(request):
     new_bill["amount_paid"] = paid_amount
     new_bill["therapy_charge"] = remaining_amount  # Update therapy_charge with previous remaining_amount
     new_bill["adjusted_charge"] = new_bill["therapy_charge"] - discount  # Adjusted charge after discount
-
     # Calculate new remaining_amount
     new_bill["remaining_amount"] = new_bill["therapy_charge"] - paid_amount - discount
-
     new_bill["discount"] = discount
     new_bill["discount_remarks"] = discount_remarks
+    new_bill["payment_method"] = payment_method
     new_bill["date"] = datetime.now(timezone.utc)  # Store current UTC date
-
     # Insert new bill into the database
     therapy_collection.insert_one(new_bill)
-
     return JsonResponse({
         'message': 'Payment updated successfully.',
         'new_bill_no': new_billing_no

@@ -133,9 +133,10 @@ class SkillTestResult(models.Model):
 class TherapyBilling(models.Model):
     billing_no = models.CharField(max_length=20, unique=True, blank=True, null=True)
     registration_number = models.CharField(max_length=20,blank=True)
-    name = models.CharField(max_length=100)  
+    name = models.CharField(max_length=100)
     nameoftherapy = models.JSONField()
     therapy_charge = models.FloatField(blank=True, default=0.0)
+    number_of_sessions = models.CharField(max_length=10,blank=True)
     discount = models.FloatField(blank=True, default=0.0)
     discount_remarks = models.CharField(max_length=1200, blank=True)
     adjusted_charge = models.FloatField(blank=True, default=0.0)
@@ -143,12 +144,13 @@ class TherapyBilling(models.Model):
     remaining_amount = models.FloatField(blank=True, default=0.0)
     payment_type = models.CharField(max_length=100, blank=True)
     payment_method = models.CharField(max_length=100, blank=True)
-    consultant_doctor = models.JSONField()  
+    consultant_doctor = models.JSONField()
+    dob = models.DateField(null=True, blank=True)  # Added dob field
     age = models.JSONField()
     sex = models.CharField(max_length=10)
-    father_phone_number = models.CharField(max_length=15, blank=True)   
-    mother_phone_number = models.CharField(max_length=15, blank=True) 
-    date = models.DateTimeField(auto_now_add=True)   
+    father_phone_number = models.CharField(max_length=15, blank=True)
+    mother_phone_number = models.CharField(max_length=15, blank=True)
+    date = models.DateTimeField(auto_now_add=True)
     def __str__(self):
         return f"Billing No: {self.billing_no} - {self.name}"
     

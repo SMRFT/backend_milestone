@@ -37,16 +37,14 @@ def pendingPayment(request):
     # Get the latest billing entry for each unique combination of specified fields
     latest_bills = (
         TherapyBilling.objects.values(
-            "name", "nameoftherapy", "father_phone_number","mother_phone_number", "age", "sex"
+            "name","dob", "nameoftherapy", "father_phone_number","mother_phone_number", "age", "sex"
         )
         .annotate(latest_billing_no=Max("billing_no"))
     )
-
     # Fetch the latest records based on billing_no
     latest_records = TherapyBilling.objects.filter(
         billing_no__in=[entry["latest_billing_no"] for entry in latest_bills]
     )
-
     serializer = TherapyBillingSerializer(latest_records, many=True)
     return Response(serializer.data, status=200)
 
@@ -119,6 +117,7 @@ def update_payment(request):
     therapy_collection = db['milestone_backend_therapybilling']
     assessment_collection = db['milestone_backend_patientassessment']
     data = json.loads(request.body)
+    age=data.get('age')
     billing_no = data.get('billing_no')
     paid_amount = float(data.get('paid_amount', 0))
     discount = float(data.get('discount', 0))
@@ -165,6 +164,7 @@ def update_payment(request):
     new_bill["discount"] = discount
     new_bill["discount_remarks"] = discount_remarks
     new_bill["payment_method"] = payment_method
+    new_bill["age"] = age
     new_bill["date"] = datetime.now(timezone.utc)  # Store current UTC date
     # Insert new bill into the database
     therapy_collection.insert_one(new_bill)

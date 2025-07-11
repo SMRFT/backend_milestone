@@ -168,6 +168,11 @@ def update_payment(request):
     new_bill["date"] = datetime.now(timezone.utc)  # Store current UTC date
     # Insert new bill into the database
     therapy_collection.insert_one(new_bill)
+      # Update the previous bill to set remaining_amount to 0
+    therapy_collection.update_one(
+        {'billing_no': billing_no},
+        {'$set': {'remaining_amount': 0}}
+    )
     return JsonResponse({
         'message': 'Payment updated successfully.',
         'new_bill_no': new_billing_no

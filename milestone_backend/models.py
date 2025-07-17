@@ -141,7 +141,7 @@ class TherapyBilling(models.Model):
     discount_remarks = models.CharField(max_length=1200, blank=True)
     adjusted_charge = models.FloatField(blank=True, default=0.0)
     amount_paid = models.FloatField(blank=True, default=0.0)
-    remaining_amount = models.FloatField(blank=True, default=0.0)
+    remaining_amount = models.JSONField(blank=True, default=dict)
     payment_type = models.CharField(max_length=100, blank=True)
     payment_method = models.CharField(max_length=100, blank=True)
     consultant_doctor = models.JSONField()

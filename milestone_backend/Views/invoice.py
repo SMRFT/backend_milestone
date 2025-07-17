@@ -31,22 +31,69 @@ if env_type in ["test", "prod"]:
 else:
     client = MongoClient(mongo_uri, tls=True, tlsCAFile=certifi.where())
 
+import json
+from django.db.models import Max
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
 @api_view(['GET'])
 @permission_classes([SkipPermissionsIfDisabled, HasRoleAndDataPermission])
 def pendingPayment(request):
-    # Get the latest billing entry for each unique combination of specified fields
-    latest_bills = (
-        TherapyBilling.objects.values(
-            "name","dob", "nameoftherapy", "father_phone_number","mother_phone_number", "age", "sex"
+    try:
+        # Step 1: Get all records first to debug
+        all_records = TherapyBilling.objects.all()
+        print(f"Total records in database: {all_records.count()}")
+        # Step 2: Get the latest billing entry for each unique combination
+        latest_bills = (
+            TherapyBilling.objects.values(
+                "name", "dob", "nameoftherapy", "father_phone_number",
+                "mother_phone_number", "age", "sex"
+            )
+            .annotate(latest_billing_no=Max("billing_no"))
         )
-        .annotate(latest_billing_no=Max("billing_no"))
-    )
-    # Fetch the latest records based on billing_no
-    latest_records = TherapyBilling.objects.filter(
-        billing_no__in=[entry["latest_billing_no"] for entry in latest_bills]
-    )
-    serializer = TherapyBillingSerializer(latest_records, many=True)
-    return Response(serializer.data, status=200)
+        print(f"Latest bills count: {len(latest_bills)}")
+        for bill in latest_bills:
+            print(f"Latest bill: {bill}")
+        # Step 3: Fetch the latest records based on billing_no
+        latest_records = TherapyBilling.objects.filter(
+            billing_no__in=[entry["latest_billing_no"] for entry in latest_bills]
+        )
+        print(f"Latest records count: {latest_records.count()}")
+        # Step 4: Debug each record's remaining_amount field
+        pending_records = []
+        for record in latest_records:
+            print(f"\n--- Processing record: {record.billing_no} ---")
+            print(f"Name: {record.name}")
+            print(f"Remaining amount raw: {record.remaining_amount}")
+            print(f"Remaining amount type: {type(record.remaining_amount)}")
+            try:
+                # Handle different possible data types
+                if isinstance(record.remaining_amount, str):
+                    remaining_amount_data = json.loads(record.remaining_amount)
+                elif isinstance(record.remaining_amount, dict):
+                    remaining_amount_data = record.remaining_amount
+                else:
+                    print(f"Unexpected type for remaining_amount: {type(record.remaining_amount)}")
+                    continue
+                print(f"Parsed remaining_amount: {remaining_amount_data}")
+                status = remaining_amount_data.get('status')
+                value = remaining_amount_data.get('value', 0)
+                print(f"Status: {status}, Value: {value}")
+                # Check if status is "Pending" and value is greater than 0
+                if status == 'Pending' and value > 0:
+                    print(f"✓ Record {record.billing_no} added to pending_records")
+                    pending_records.append(record)
+                else:
+                    print(f"✗ Record {record.billing_no} NOT added - Status: {status}, Value: {value}")
+            except (json.JSONDecodeError, AttributeError, TypeError) as e:
+                print(f"Error parsing remaining_amount for {record.billing_no}: {e}")
+                continue
+        print(f"\nFinal pending records count: {len(pending_records)}")
+        # Step 5: Serialize and return
+        serializer = TherapyBillingSerializer(pending_records, many=True)
+        return Response(serializer.data, status=200)
+    except Exception as e:
+        print(f"Error in pendingPayment view: {e}")
+        return Response({"error": str(e)}, status=500)
 
 
 from django.http import JsonResponse
@@ -117,10 +164,10 @@ def update_payment(request):
     therapy_collection = db['milestone_backend_therapybilling']
     assessment_collection = db['milestone_backend_patientassessment']
     data = json.loads(request.body)
-    age=data.get('age')
+    age = data.get('age')
     billing_no = data.get('billing_no')
-    paid_amount = float(data.get('paid_amount', 0))
-    discount = float(data.get('discount', 0))
+    paid_amount = data.get('paid_amount', 0)  # Remove float() conversion
+    discount = data.get('discount', 0)  # Remove float() conversion
     discount_remarks = data.get('discount_remarks', "")
     payment_method = data.get('payment_method', "")
     if not billing_no or paid_amount < 0 or discount < 0:
@@ -129,7 +176,18 @@ def update_payment(request):
     patient = therapy_collection.find_one({'billing_no': billing_no})
     if not patient:
         return JsonResponse({'error': 'Patient not found.'}, status=404)
-    remaining_amount = float(patient.get('remaining_amount', 0))
+    # Parse remaining amount (handle both object and numeric formats)
+    remaining_amount_data = patient.get('remaining_amount', 0)
+    if isinstance(remaining_amount_data, str):
+        try:
+            remaining_amount_obj = json.loads(remaining_amount_data)
+            remaining_amount = remaining_amount_obj.get('value', 0)  # Remove float() conversion
+        except (json.JSONDecodeError, ValueError):
+            remaining_amount = remaining_amount_data  # Remove float() conversion
+    elif isinstance(remaining_amount_data, dict):
+        remaining_amount = remaining_amount_data.get('value', 0)  # Remove float() conversion
+    else:
+        remaining_amount = remaining_amount_data  # Remove float() conversion
     if paid_amount + discount > remaining_amount:
         return JsonResponse({'error': 'Total payment + discount exceeds remaining balance.'}, status=400)
     # Determine financial year and prefix
@@ -152,6 +210,27 @@ def update_payment(request):
         latest_billing_no = max(latest_billing_no, extract_numeric_part(latest_assessment["billing_no"]))
     # Generate the new billing number with six digits
     new_billing_no = f"{prefix}{str(latest_billing_no + 1).zfill(6)}"
+    # Calculate new remaining amount
+    new_remaining_amount_value = remaining_amount - paid_amount - discount
+    # Get current Indian time
+    from pytz import timezone as pytz_timezone
+    indian_tz = pytz_timezone('Asia/Kolkata')
+    current_indian_time = datetime.now(indian_tz)
+    # Determine status based on remaining amount
+    if new_remaining_amount_value <= 0:
+        status = "Paid"
+        paid_date = current_indian_time.strftime("%d/%m/%Y, %H:%M:%S")
+        new_remaining_amount_value = 0
+    else:
+        status = "Pending"
+        paid_date = None
+    # Create remaining_amount as JSON object
+    remaining_amount_json = json.dumps({
+        "value": new_remaining_amount_value,
+        "status": status,
+        "paid_date": paid_date,
+        "new_bill_no": new_billing_no if new_remaining_amount_value > 0 else None
+    })
     # Copy patient data to create a new bill
     new_bill = patient.copy()
     new_bill.pop("_id", None)  # Remove MongoDB _id to avoid duplication
@@ -159,21 +238,30 @@ def update_payment(request):
     new_bill["amount_paid"] = paid_amount
     new_bill["therapy_charge"] = remaining_amount  # Update therapy_charge with previous remaining_amount
     new_bill["adjusted_charge"] = new_bill["therapy_charge"] - discount  # Adjusted charge after discount
-    # Calculate new remaining_amount
-    new_bill["remaining_amount"] = new_bill["therapy_charge"] - paid_amount - discount
+    new_bill["remaining_amount"] = remaining_amount_json  # Store as JSON string
     new_bill["discount"] = discount
     new_bill["discount_remarks"] = discount_remarks
     new_bill["payment_method"] = payment_method
     new_bill["age"] = age
-    new_bill["date"] = datetime.now(timezone.utc)  # Store current UTC date
+    new_bill["date"] = current_indian_time  # Store current Indian time
     # Insert new bill into the database
     therapy_collection.insert_one(new_bill)
-      # Update the previous bill to set remaining_amount to 0
+    # Update the previous bill - only update status, paid_date, and new_bill_no
+    # Keep the original remaining_amount value, just update other fields
+    previous_remaining_amount_obj = {
+        "value": remaining_amount,  # Keep original remaining amount
+        "status": "Paid",
+        "paid_date": current_indian_time.strftime("%d/%m/%Y, %H:%M:%S"),
+        "new_bill_no": new_billing_no
+    }
+    previous_remaining_amount_json = json.dumps(previous_remaining_amount_obj)
     therapy_collection.update_one(
         {'billing_no': billing_no},
-        {'$set': {'remaining_amount': 0}}
+        {'$set': {'remaining_amount': previous_remaining_amount_json}}
     )
     return JsonResponse({
         'message': 'Payment updated successfully.',
-        'new_bill_no': new_billing_no
+        'new_bill_no': new_billing_no,
+        'remaining_amount': new_remaining_amount_value,
+        'status': status
     }, status=200)

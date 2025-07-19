@@ -11,7 +11,7 @@ from pyauth.auth import HasRolePermission
 def save_consulting_doctor(request):
     if request.method == 'POST':
         try:
-            data = json.loads(request.body)
+            data = request.data
             doctor = ConsultingDoctor.objects.create(
                 name=data.get('name'),
                 designation=data.get('designation'),
@@ -32,7 +32,8 @@ def save_consulting_doctor(request):
     return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
 
 
-
+@api_view(['GET'])
+@permission_classes([HasRolePermission])
 @csrf_exempt
 def get_consulting_doctors(request):
     doctors = ConsultingDoctor.objects.all().values()

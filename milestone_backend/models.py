@@ -1,6 +1,18 @@
 from django.db import models,transaction
 import datetime
-class Registration(models.Model):
+from django.utils.timezone import now
+from django.utils import timezone
+
+class AuditModel(models.Model):
+    created_by = models.CharField(max_length=100, blank=True, null=True)
+    created_date = models.DateTimeField(auto_now_add=True)
+    lastmodified_by = models.CharField(max_length=100, blank=True, null=True)
+    lastmodified_date = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        abstract = True
+
+class Registration(AuditModel):
     name_of_child = models.CharField(max_length=100)
     dob = models.DateField(null=True, blank=True)  # Added dob field
     age = models.JSONField()
@@ -39,7 +51,7 @@ class Registration(models.Model):
         super(Registration, self).save(*args, **kwargs)
 
 
-class PatientAssessment(models.Model):
+class PatientAssessment(AuditModel):
     billing_no = models.CharField(max_length=20, unique=True, blank=True, null=True)
     registration_number = models.CharField(max_length=255)
     patient_name = models.CharField(max_length=255)
@@ -65,14 +77,7 @@ class PatientAssessment(models.Model):
     def __str__(self):
         return f"Assessment for {self.patient_name}"
 
-    
-#login
-class Login(models.Model):
-    email = models.EmailField(unique=True)
-    password = models.CharField(max_length=255)
-
-from django.db import models
-class EmployeeRegistration(models.Model):
+class EmployeeRegistration(AuditModel):
     empid= models.CharField(max_length=255)
     name = models.CharField(max_length=255)
     role = models.CharField(max_length=255)
@@ -82,16 +87,15 @@ class EmployeeRegistration(models.Model):
     def __str__(self):
         return self.name
     
-from django.db import models
-class DevelopmentalTask(models.Model):
+
+class DevelopmentalTask(AuditModel):
     age = models.JSONField()
     task = models.CharField(max_length=255)
     value = models.IntegerField()
     def __str__(self):
         return f"{self.age} - {self.task}"
-    
-from django.db import models
-class PediatricAssessment(models.Model):
+
+class PediatricAssessment(AuditModel):
     name = models.CharField(max_length=100)
     age = models.JSONField()
     dob = models.DateField()
@@ -119,7 +123,7 @@ class PediatricAssessment(models.Model):
     def __str__(self):
         return self.name
     
-class SkillTestResult(models.Model):
+class SkillTestResult(AuditModel):
     registration_number = models.CharField(max_length=50)
     patient_name = models.CharField(max_length=100)
     age = models.JSONField()
@@ -130,20 +134,22 @@ class SkillTestResult(models.Model):
         return f"Skill Test for {self.patient_name} ({self.registration_number})"
     
 
-class TherapyBilling(models.Model):
+class TherapyBilling(AuditModel):
     billing_no = models.CharField(max_length=20, unique=True, blank=True, null=True)
     registration_number = models.CharField(max_length=20,blank=True)
     name = models.CharField(max_length=100)  
     nameoftherapy = models.JSONField()
     therapy_charge = models.FloatField(blank=True, default=0.0)
+    number_of_sessions = models.CharField(max_length=10,blank=True)
     discount = models.FloatField(blank=True, default=0.0)
     discount_remarks = models.CharField(max_length=1200, blank=True)
     adjusted_charge = models.FloatField(blank=True, default=0.0)
     amount_paid = models.FloatField(blank=True, default=0.0)
-    remaining_amount = models.FloatField(blank=True, default=0.0)
+    remaining_amount = models.JSONField(blank=True, default=dict)
     payment_type = models.CharField(max_length=100, blank=True)
     payment_method = models.CharField(max_length=100, blank=True)
     consultant_doctor = models.JSONField()  
+    dob = models.DateField(null=True, blank=True)  # Added dob field
     age = models.JSONField()
     sex = models.CharField(max_length=10)
     father_phone_number = models.CharField(max_length=15, blank=True)   
@@ -153,7 +159,7 @@ class TherapyBilling(models.Model):
         return f"Billing No: {self.billing_no} - {self.name}"
     
 
-class OthersBilling(models.Model):
+class OthersBilling(AuditModel):
     billing_no = models.CharField(max_length=20, unique=True, blank=True, null=True)
     registration_number = models.CharField(max_length=20, blank=True)
     name = models.CharField(max_length=100)
@@ -171,7 +177,7 @@ class OthersBilling(models.Model):
         return f"Billing No: {self.billing_no} - {self.name}"
     
 
-class MCHATResponse(models.Model):
+class MCHATResponse(AuditModel):
     registration_number= models.CharField(max_length=255)
     patient_name = models.CharField(max_length=255)
     age = models.JSONField()
@@ -183,7 +189,7 @@ class MCHATResponse(models.Model):
     def __str__(self):
         return f"{self.patient_name} - {self.age} - {self.sex}"
     
-class ReferralDoctor(models.Model):
+class ReferralDoctor(AuditModel):
     doctor_name = models.CharField(max_length=100)
     hospital_name = models.CharField(max_length=100)
     area = models.CharField(max_length=100,blank=True)
@@ -192,11 +198,9 @@ class ReferralDoctor(models.Model):
     phone_number = models.CharField(max_length=15,blank=True)
     def __str__(self):
         return self.doctor_name
-    
 
-from django.db import models
 
-class ChildLanguageAssessment(models.Model):
+class ChildLanguageAssessment(AuditModel):
     childName = models.CharField(max_length=100)
     age = models.CharField(max_length=100)
     gender = models.TextField(max_length=100)  
@@ -220,11 +224,9 @@ class ChildLanguageAssessment(models.Model):
     def __str__(self):
         return self.childName
     
-  # models.py
 
-from django.db import models
 
-class DevelopmentalScreeningTask(models.Model):
+class DevelopmentalScreeningTask(AuditModel):
     patient_name = models.CharField(max_length=255)
     age = models.CharField(max_length=50, default="N/A")
     gender = models.CharField(max_length=50, default="N/A")
@@ -241,10 +243,8 @@ class DevelopmentalScreeningTask(models.Model):
         return f"{self.patient_name} - {self.age}"
 
 
-from django.db import models
 
-# For table1, table2, etc.
-class CBCL(models.Model):
+class CBCL(AuditModel):
     childName = models.CharField(max_length=255)
     age = models.JSONField()  # Store age as a JSON object: { "year": 5, "months": 3, "days": 20 }
     gender = models.CharField(max_length=10)
@@ -263,10 +263,8 @@ class CBCL(models.Model):
         return self.patient_name
 
 
-# models.py
-from django.db import models
 
-class ConsultingDoctor(models.Model):
+class ConsultingDoctor(AuditModel):
     name = models.CharField(max_length=100)
     designation = models.CharField(max_length=100, blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True, null=True)

@@ -24,8 +24,7 @@ urlpatterns = [
     path('therapy_billing/', therapybilling.therapy_billing, name='therapy_billing'),  
     
     
-    path('all-assessments/', patientdetails.get_all_assessments, name='all-assessments'),   
-    path('login/',Security.LoginView,name='LoginView'),
+    path('all-assessments/', patientdetails.get_all_assessments, name='all-assessments'),     
     path('developmental-tasks/', developmentalscreeningtask.DevelopmentalTask, name='DevelopmentalTask'),
     path('get-assessments/',patientdetails.get_assessments, name='get-assessments'),
     path('pediatric-assessment/',views.PediatricAssessment, name='pediatric-assessment'),

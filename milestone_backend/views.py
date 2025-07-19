@@ -152,6 +152,9 @@ def str_to_date_utc(date_str, is_end_of_day=False):
         return None
 
 # Fetch patient assessments using Django ORM with date filtering
+@api_view(['GET'])
+@permission_classes([HasRolePermission])
+@csrf_exempt
 def get_patient_assessments(request):
     from_date_str = request.GET.get('from_date')  # Get the 'from_date' query parameter
     to_date_str = request.GET.get('to_date')  # Get the 'to_date' query parameter

@@ -34,12 +34,17 @@ else:
 @api_view(['POST'])
 @permission_classes([HasRolePermission])
 def create_registration(request):
-    serializer = RegistrationSerializer(data=request.data)
+    # Extract employee ID from request
+    employee_id = request.data.get('auth-user-id')
+    
+    # Pass employee_id through context
+    serializer = RegistrationSerializer(data=request.data, context={'employee_id': employee_id})
     
     if serializer.is_valid():
-        serializer.save()  # Automatically calls the save() method in your model to generate the registration number
+        serializer.save()
         return Response(serializer.data, status=201)
     return Response(serializer.errors, status=400)
+
 
 
 @api_view(['GET'])
@@ -105,12 +110,17 @@ def get_all_assessments(request):
 @permission_classes([HasRolePermission])
 def save_assessments(request):
     if request.method == 'POST':
-        serializer = PatientAssessmentSerializer(data=request.data)
+        # Extract employee ID from request
+        employee_id = request.data.get('auth-user-id')
+        
+        # Pass employee_id through context
+        serializer = PatientAssessmentSerializer(data=request.data, context={'employee_id': employee_id})
         
         if serializer.is_valid():
             serializer.save()  # Save the new patient assessment to the database
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     
 
 

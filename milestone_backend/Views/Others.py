@@ -18,25 +18,31 @@ from datetime import datetime, timezone, timedelta
 @permission_classes([HasRolePermission])
 def others_billing(request):
     from .invoice import get_latest_billing_no  # Move import inside function
-
-    serializer = OthersBillingSerializer(data=request.data)
+    
+    # Extract employee ID from request
+    employee_id = request.data.get('auth-user-id')
+    
+    # Pass employee_id through context
+    serializer = OthersBillingSerializer(data=request.data, context={'employee_id': employee_id})
+    
     if serializer.is_valid():
-        others_billing_instance = OthersBilling(**serializer.validated_data)
-
-        # Automatically set the date and time
-        others_billing_instance.date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        if not others_billing_instance.billing_no:
+        # Get billing number if not provided
+        billing_no = serializer.validated_data.get('billing_no')
+        if not billing_no:
             latest_billing_response = get_latest_billing_no(None)
             latest_billing_data = json.loads(latest_billing_response.content.decode())
-            others_billing_instance.billing_no = latest_billing_data.get('billing_no', '001')
-
-        others_billing_instance.save()
-        return Response(OthersBillingSerializer(others_billing_instance).data, status=201)
+            billing_no = latest_billing_data.get('billing_no', '001')
+        
+        # Save with additional fields
+        therapy_billing_instance = serializer.save(
+            created_by=employee_id,
+            date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            billing_no=billing_no
+        )
+        
+        return Response(OthersBillingSerializer(therapy_billing_instance).data, status=201)
 
     return Response(serializer.errors, status=400)
-
-
 
 
 

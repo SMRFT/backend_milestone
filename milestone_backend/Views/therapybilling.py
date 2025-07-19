@@ -17,20 +17,28 @@ from pyauth.auth import HasRolePermission
 @permission_classes([HasRolePermission])
 def therapy_billing(request):
     from .invoice import get_latest_billing_no  # Move import inside function
-
-    serializer = TherapyBillingSerializer(data=request.data)
+    
+    # Extract employee ID from request
+    employee_id = request.data.get('auth-user-id')
+    
+    # Pass employee_id through context
+    serializer = TherapyBillingSerializer(data=request.data, context={'employee_id': employee_id})
+    
     if serializer.is_valid():
-        therapy_billing_instance = TherapyBilling(**serializer.validated_data)
-
-        # Automatically set the date and time
-        therapy_billing_instance.date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        if not therapy_billing_instance.billing_no:
+        # Get billing number if not provided
+        billing_no = serializer.validated_data.get('billing_no')
+        if not billing_no:
             latest_billing_response = get_latest_billing_no(None)
             latest_billing_data = json.loads(latest_billing_response.content.decode())
-            therapy_billing_instance.billing_no = latest_billing_data.get('billing_no', '001')
-
-        therapy_billing_instance.save()
+            billing_no = latest_billing_data.get('billing_no', '001')
+        
+        # Save with additional fields
+        therapy_billing_instance = serializer.save(
+            created_by=employee_id,
+            date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            billing_no=billing_no
+        )
+        
         return Response(TherapyBillingSerializer(therapy_billing_instance).data, status=201)
 
     return Response(serializer.errors, status=400)

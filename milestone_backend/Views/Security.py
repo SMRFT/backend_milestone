@@ -23,23 +23,3 @@ def employeeregistration(request):
         return Response({'message': 'Registration successful!'}, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-@csrf_exempt
-@api_view(['POST'])
-@permission_classes([HasRolePermission])
-def LoginView(request):
-    email = request.data.get('email')
-    password = request.data.get('password')
-    try:
-        # Find the user by email
-        user = EmployeeRegistration.objects.get(email=email)
-        # Check if the password matches
-        if check_password(password, user.password):
-            # If password matches, login is successful
-            return JsonResponse({'message': 'Login successful!', 'name': user.name}, status=status.HTTP_200_OK)
-        else:
-            # If password doesn't match
-            return JsonResponse({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
-    except EmployeeRegistration.DoesNotExist:
-        # If user with given email does not exist
-        return JsonResponse({'error': 'User does not exist'}, status=status.HTTP_404_NOT_FOUND)

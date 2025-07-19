@@ -14,7 +14,12 @@ from pyauth.auth import HasRolePermission
 @permission_classes([HasRolePermission])
 def register_referral_doctor(request):
     if request.method == 'POST':
-        serializer = ReferralDoctorSerializer(data=request.data)
+        # Extract employee ID from request
+        employee_id = request.data.get('auth-user-id')
+        
+        # Pass employee_id through context
+        serializer = ReferralDoctorSerializer(data=request.data, context={'employee_id': employee_id})
+        
         if serializer.is_valid():
             serializer.save()
             return Response({"message": "Referral Doctor registered successfully!"}, status=status.HTTP_201_CREATED)

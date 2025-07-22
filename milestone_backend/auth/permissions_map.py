@@ -11,11 +11,14 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/pendingPayment/':'MDC-P-PNP',
     '/_b_a_c_k_e_n_d/Milestone/updatePayment/':'MDC-P-PNP',
     '/_b_a_c_k_e_n_d/Milestone/next-registration-number/':'MDC-P-REG',
-    '/_b_a_c_k_e_n_d/Milestone/referral-doctor/list/':'MDC-P-REG',
+    '/_b_a_c_k_e_n_d/Milestone/referral-doctor/list/':'MDC-API-RDL',
     '/_b_a_c_k_e_n_d/Milestone/referral-doctor/register/':'MDC-P-REG',
     '/_b_a_c_k_e_n_d/Milestone/register/':'MDC-P-REG',   
     '/_b_a_c_k_e_n_d/Milestone/referrals/?(\?.*)?$':'MDC-P-SOR',
-     '/_b_a_c_k_e_n_d/Milestone/therapy_billing/':'MDC-P-TRB',
+    '/_b_a_c_k_e_n_d/Milestone/therapy_billing/':'MDC-P-TRB',
+    '/_b_a_c_k_e_n_d/Milestone/update-patient/?(\?.*)?$':'MDC-P-PTE',
+    '/_b_a_c_k_e_n_d/Milestone/update-doctor(?:/[^/]+)+/$':'MDC-P-RDE',
+    '/_b_a_c_k_e_n_d/Milestone/update-employeeDr(?:/[^/]+)+/$':'MDC-P-CDE',
 
     '/_b_a_c_k_e_n_d/Milestone/all-assessments/':'',
     '/_b_a_c_k_e_n_d/Milestone/login/':'',
@@ -55,6 +58,10 @@ PAGE_MAPPING = {
     '/register/':'MDC-P-REG',   
     '/referrals/':'MDC-P-SOR',
     '/therapy_billing/':'MDC-P-TRB',
+     '/update-patient/?(\?.*)?$':'',
+    '/update-doctor/?(\?.*)?$':'',
+    '/update-employeeDr/?(\?.*)?$':'',
+
 
     '/all-assessments/':'',
     '/login/':'',

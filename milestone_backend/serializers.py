@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Registration,PatientAssessment
 from bson import ObjectId
 from .models import ReferralDoctor
+from .models import ConsultingDoctor
 from rest_framework import serializers
 from .models import PediatricAssessment
 from rest_framework import serializers
@@ -155,37 +156,29 @@ class MCHATResponseSerializer(serializers.ModelSerializer):
 
 
 class ReferralDoctorSerializer(serializers.ModelSerializer):
-    # Handle ObjectId serialization (if you're using djongo/MongoDB)
-    id = serializers.CharField(read_only=True)
-    
     class Meta:
         model = ReferralDoctor
         fields = "__all__"
-        # Make audit fields read-only since we'll set them programmatically
-        read_only_fields = ['id', 'created_by', 'created_date', 'lastmodified_date']
-    
-    def to_representation(self, instance):
-        """Custom serialization to handle ObjectId"""
-        data = super().to_representation(instance)
-        
-        # Convert ObjectId to string if present
-        if 'id' in data and data['id'] is not None:
-            data['id'] = str(data['id'])
-            
-        return data
+        read_only_fields = ['referral_id', 'created_by', 'created_date', 'lastmodified_date']
     
     def create(self, validated_data):
-        # Get the employee_id from the context (passed from the view)
         employee_id = self.context.get('employee_id')
-        
-        # Set the created_by field
         if employee_id:
             validated_data['created_by'] = employee_id
-            
         return super().create(validated_data)
 
-
-
+class ConsultingDoctorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConsultingDoctor
+        fields = "__all__"
+        read_only_fields = ['id', 'created_by', 'created_date', 'lastmodified_date']  # Add other auto fields as needed
+    
+    def create(self, validated_data):
+        # Get the auth_user_id from context and set it as created_by
+        auth_user_id = self.context.get('auth_user_id')
+        if auth_user_id:
+            validated_data['created_by'] = auth_user_id
+        return super().create(validated_data)
 
 # serializers.py
 from rest_framework import serializers

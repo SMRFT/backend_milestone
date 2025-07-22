@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, re_path
 from . import views 
 from .views import pediatric_assessment_list,get_patients_report
 from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others
@@ -20,8 +20,12 @@ urlpatterns = [
     path("referral-doctor/list/", referals.get_referral_doctors, name="list-referral-doctors"),
     path("referral-doctor/register/", referals.register_referral_doctor, name="register-referral-doctor"),
     path('register/', patientdetails.create_registration, name='register'),      
-    path('referrals/', referals.get_referrals, name='get_referrals'),  
+    path('referrals/', patientdetails.get_referrals, name='get_referrals'),  
     path('therapy_billing/', therapybilling.therapy_billing, name='therapy_billing'),  
+    re_path(r'^update-patient/(?P<registration_number>MDC/\d+/\d+)/$', patientdetails.update_registration, name='update_registration'), 
+    path('update-doctor/<str:referral_id>/', referals.update_doctor, name='update_doctor'),     
+    path('update-employeeDr/<str:employee_id>/', consultingdoctors.update_consulting_doctor, name='update_consulting_doctor'),     
+
     
     
     path('all-assessments/', patientdetails.get_all_assessments, name='all-assessments'),     

@@ -191,13 +191,27 @@ class MCHATResponse(AuditModel):
     
 class ReferralDoctor(AuditModel):
     doctor_name = models.CharField(max_length=100)
+    referral_id = models.CharField(max_length=10, blank=True, null=True)  # Make it optional first
+    sex = models.CharField(max_length=20, blank=True, null=True)  # Make it optional first  
+    email = models.CharField(max_length=100, blank=True, null=True)  # Use CharField instead of EmailField initially
     hospital_name = models.CharField(max_length=100)
-    area = models.CharField(max_length=100,blank=True)
-    city = models.CharField(max_length=100,blank=True)
-    district = models.CharField(max_length=100,blank=True)
-    phone_number = models.CharField(max_length=15,blank=True)
+    area = models.CharField(max_length=100, blank=True, null=True)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    district = models.CharField(max_length=100, blank=True, null=True)
+    phone_number = models.CharField(max_length=15, blank=True, null=True)
+
+    def save(self, *args, **kwargs):
+        if not self.referral_id:
+            # Simple auto-increment logic
+            last_id = ReferralDoctor.objects.count()
+            self.referral_id = f"{last_id + 1:03d}"
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.doctor_name
+
+
+
 
 
 class ChildLanguageAssessment(AuditModel):
@@ -265,6 +279,7 @@ class CBCL(AuditModel):
 
 
 class ConsultingDoctor(AuditModel):
+    employee_id = models.CharField(max_length=100)
     name = models.CharField(max_length=100)
     designation = models.CharField(max_length=100, blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True, null=True)

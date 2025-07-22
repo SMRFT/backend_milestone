@@ -13,6 +13,12 @@ from pymongo import MongoClient
 from django.http import JsonResponse
 from ..models import Registration
 from pyauth.auth import HasRolePermission
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework import status
+from django.utils import timezone
+from django.shortcuts import get_object_or_404
+from pymongo import MongoClient
 import gridfs
 
 import os
@@ -45,6 +51,86 @@ def create_registration(request):
         return Response(serializer.data, status=201)
     return Response(serializer.errors, status=400)
 
+
+
+@api_view(['PATCH'])
+@permission_classes([HasRolePermission])
+def update_registration(request, registration_number):
+    """
+    Update registration with automatic audit field population using registration_number
+    """
+    try:
+        # MongoDB connection setup
+        mongo_uri = os.environ.get("MILESTONE_DB_HOST")
+        db_name = os.environ.get("MILESTONE_DB_NAME", "Milestone")
+        collection_name = "milestone_backend_registration"  # Assuming this is the collection name
+        
+        # Connect to MongoDB
+        client = MongoClient(mongo_uri)
+        db = client[db_name]
+        collection = db[collection_name]
+        
+        # Find the document by registration_number
+        registration_doc = collection.find_one({"registration_number": registration_number})
+        
+        if not registration_doc:
+            return Response(
+                {'error': 'Registration not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Extract employee ID from request
+        employee_id = request.data.get('auth-user-id')
+        
+        # Prepare update data
+        update_data = {}
+        
+        # Add fields from request data (excluding system fields)
+        excluded_fields = ['_id', 'created_at', 'lastmodified_date', 'lastmodified_by', 'registration_number']
+        for key, value in request.data.items():
+            if key not in excluded_fields:
+                update_data[key] = value
+        
+        # Add audit fields
+        update_data['lastmodified_date'] = datetime.now()
+        if employee_id:
+            update_data['lastmodified_by'] = employee_id
+        
+        # Perform the update
+        result = collection.update_one(
+            {"registration_number": registration_number},
+            {"$set": update_data}
+        )
+        
+        if result.modified_count > 0:
+            # Fetch the updated document
+            updated_doc = collection.find_one({"registration_number": registration_number})
+            
+            # Convert ObjectId to string for JSON serialization
+            if '_id' in updated_doc:
+                updated_doc['_id'] = str(updated_doc['_id'])
+            
+            # Convert datetime objects to ISO format strings
+            for key, value in updated_doc.items():
+                if isinstance(value, datetime):
+                    updated_doc[key] = value.isoformat()
+            
+            return Response(updated_doc, status=status.HTTP_200_OK)
+        else:
+            return Response(
+                {'message': 'No changes were made'}, 
+                status=status.HTTP_200_OK
+            )
+        
+    except Exception as e:
+        return Response(
+            {'error': str(e)}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    finally:
+        # Always close the MongoDB connection
+        if 'client' in locals():
+            client.close()
 
 
 @api_view(['GET'])
@@ -194,3 +280,31 @@ def get_patient_by_registration(request, prefix, id, year):
         })
     except Registration.DoesNotExist:
         return JsonResponse({"error": "Patient not found"}, status=404)
+    
+@api_view(['GET'])
+@permission_classes([HasRolePermission])
+def get_referrals(request):
+    try:
+        # Get the date range from query parameters
+        from_date_str = request.GET.get('fromDate', '')
+        to_date_str = request.GET.get('toDate', '')
+        
+        # Convert strings to datetime objects
+        from_date = datetime.strptime(from_date_str, '%Y-%m-%d') if from_date_str else None
+        to_date = datetime.strptime(to_date_str, '%Y-%m-%d') if to_date_str else None
+        
+        # Filter registrations based on the date range
+        queryset = Registration.objects.all()
+
+        if from_date:
+            queryset = queryset.filter(date__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(date__lte=to_date)
+
+        # Serialize the data
+        serializer = RegistrationSerializer(queryset, many=True)
+
+        return Response(serializer.data, status=200)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

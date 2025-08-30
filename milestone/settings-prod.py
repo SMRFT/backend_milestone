@@ -28,7 +28,7 @@ DEBUG = True
 
 
 ALLOWED_HOSTS = [
-    'localhost',
+    'shinova.in',
     '127.0.0.1',
     'node223383-shinova.in1.cloudlets.co.in',
     'shinova.in1.cloudlets.co.in'

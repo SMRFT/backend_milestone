@@ -72,7 +72,7 @@ def update_consulting_doctor(request, employee_id):
     """
     try:
         # MongoDB connection setup
-        mongo_uri = os.environ.get("MILESTONE_DB_HOST")
+        mongo_uri = os.environ.get("GLOBAL_DB_HOST")
         db_name = os.environ.get("MILESTONE_DB_NAME", "Milestone")
         collection_name = "milestone_backend_consultingdoctor"  # Assuming this is the collection name
         

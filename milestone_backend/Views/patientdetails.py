@@ -29,7 +29,7 @@ load_dotenv()  # Load from .env if present
 
 env_type = os.environ.get("ENV_CLASSIFICATION", "local")
 
-mongo_uri = os.environ.get("MILESTONE_DB_HOST")
+mongo_uri = os.environ.get("GLOBAL_DB_HOST")
 db_name = os.environ.get("MILESTONE_DB_NAME", "Milestone")
 
 if env_type in ["test", "prod"]:
@@ -61,7 +61,7 @@ def update_registration(request, registration_number):
     """
     try:
         # MongoDB connection setup
-        mongo_uri = os.environ.get("MILESTONE_DB_HOST")
+        mongo_uri = os.environ.get("GLOBAL_DB_HOST")
         db_name = os.environ.get("MILESTONE_DB_NAME", "Milestone")
         collection_name = "milestone_backend_registration"  # Assuming this is the collection name
         

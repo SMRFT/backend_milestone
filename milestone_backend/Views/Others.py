@@ -1,0 +1,79 @@
+from datetime import datetime
+import json
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.response import Response
+from rest_framework.decorators import api_view , permission_classes
+from rest_framework.response import Response
+from datetime import datetime, timezone, timedelta
+from ..models import OthersBilling
+from ..serializers import OthersBillingSerializer
+from pyauth.auth import HasRolePermission
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from datetime import datetime, timezone, timedelta
+
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([HasRolePermission])
+def others_billing(request):
+    from .invoice import get_latest_billing_no  # Move import inside function
+    
+    # Extract employee ID from request
+    employee_id = request.data.get('auth-user-id')
+    
+    # Pass employee_id through context
+    serializer = OthersBillingSerializer(data=request.data, context={'employee_id': employee_id})
+    
+    if serializer.is_valid():
+        # Get billing number if not provided
+        billing_no = serializer.validated_data.get('billing_no')
+        if not billing_no:
+            latest_billing_response = get_latest_billing_no(None)
+            latest_billing_data = json.loads(latest_billing_response.content.decode())
+            billing_no = latest_billing_data.get('billing_no', '001')
+        
+        # Save with additional fields
+        therapy_billing_instance = serializer.save(
+            created_by=employee_id,
+            date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            billing_no=billing_no
+        )
+        
+        return Response(OthersBillingSerializer(therapy_billing_instance).data, status=201)
+
+    return Response(serializer.errors, status=400)
+
+
+
+@api_view(['GET'])
+@permission_classes([HasRolePermission])
+def get_others_reports(request):
+    from_date_str = request.GET.get('from_date')
+    to_date_str = request.GET.get('to_date')
+
+    # Convert date strings to UTC-aware datetime objects
+    if from_date_str:
+        from_date = datetime.strptime(from_date_str, '%Y-%m-%d').replace(hour=0, minute=0, second=0, tzinfo=timezone.utc)
+    else:
+        from_date = None
+
+    if to_date_str:
+        # Use `<` instead of `<=` to ensure we capture the full day
+        to_date = datetime.strptime(to_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59, tzinfo=timezone.utc) + timedelta(seconds=1)
+    else:
+        to_date = None
+
+    # Query with proper filters
+    if from_date and to_date:
+        others_billing_data = OthersBilling.objects.filter(date__gte=from_date, date__lt=to_date)  # Use `lt` instead of `lte`
+    elif from_date:
+        others_billing_data = OthersBilling.objects.filter(date__gte=from_date)
+    elif to_date:
+        others_billing_data = OthersBilling.objects.filter(date__lt=to_date)
+    else:
+        others_billing_data = OthersBilling.objects.all()
+
+    # Serialize and return data
+    serializer = OthersBillingSerializer(others_billing_data, many=True)
+    return Response(serializer.data)

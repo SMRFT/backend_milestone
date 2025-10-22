@@ -232,6 +232,8 @@ from rest_framework import serializers
 from .models import PatientAttendance
 
 class PatientAttendanceSerializer(serializers.ModelSerializer):
+    id = ObjectIdField(read_only=True)
+    
     class Meta:
         model = PatientAttendance
         fields = ['id', 'registration_number', 'date', 'session', 'therapy_charge']

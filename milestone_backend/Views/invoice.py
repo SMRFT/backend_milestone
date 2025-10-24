@@ -32,7 +32,7 @@ else:
     client = MongoClient(mongo_uri)
 
 @api_view(['GET'])
-# @permission_classes([HasRolePermission])
+@permission_classes([HasRolePermission])
 def pendingPayment(request):
     try:
         # Step 1: Get all records first to debug

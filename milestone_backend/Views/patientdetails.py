@@ -141,6 +141,31 @@ from ..serializers import RegistrationSerializer
 @api_view(['GET'])
 @permission_classes([HasRolePermission])
 def get_all_patients(request):
+    # Get today's date
+    today = datetime.utcnow().date()
+    # Get all patients from the Registration model
+    patients = Registration.objects.all()
+    # Get all patient assessments
+    patient_assessments = PatientAssessment.objects.all()
+    # Filter assessments for today in Python
+    assessed_patients_today = {
+        assessment.registration_number
+        for assessment in patient_assessments
+        if assessment.date.date() == today
+    }
+           # Create a list of patient data without the 'disabled' field
+    patient_data = []
+    for patient in patients:
+        # Serialize patient data using RegistrationSerializer
+        patient_info = RegistrationSerializer(patient).data
+        # Add patient data to the list without the 'disabled' field
+        patient_data.append(patient_info)
+    # Return the patient data in the response
+    return Response(patient_data)
+
+@api_view(['GET'])
+@permission_classes([HasRolePermission])
+def get_all_attendance_patients(request):
     patients = Registration.objects.all()
     attendances = PatientAttendance.objects.filter()
 

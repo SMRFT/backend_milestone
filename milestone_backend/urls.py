@@ -14,6 +14,7 @@ urlpatterns = [
     path('save-assessments/', patientdetails.save_assessments, name='save-assessments'), 
     path('others_billing/', Others.others_billing, name='others_billing'),  
     path('all-patient/', patientdetails.get_all_patients, name='all-patients'),
+    path('all-attendance-patient/', patientdetails.get_all_attendance_patients, name='all-patients'),
     path('pendingPayment/', invoice.pendingPayment, name='pendingPayment'),
     path('updatePayment/', invoice.update_payment, name='update_payment'),
     path('next-registration-number/', patientdetails.get_latest_registration_number, name='next_registration_number'),

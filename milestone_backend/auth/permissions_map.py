@@ -1,7 +1,7 @@
-PAGE_MAPPING = {
+AGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/therapy-reports/?(\?.*)?$':'MDC-API-THR',
     '/_b_a_c_k_e_n_d/Milestone/get_patient_assessments/?(\?.*)?$':'MDC-API-GAS',
-    '/_b_a_c_k_e_n_d/Milestone/others-reports/?(\?.*)?$':'MDC-API-RTS',   
+    '/_b_a_c_k_e_n_d/Milestone/others-reports/?(\?.*)?$':'MDC-API-RTS',
     '/_b_a_c_k_e_n_d/Milestone/get-latest-billing-no/':'MDC-API-LBN',
     '/_b_a_c_k_e_n_d/Milestone/get-consulting-doctors/':'MDC-API-CDR',
     '/_b_a_c_k_e_n_d/Milestone/save-consulting-doctor/':'MDC-P-ASM',
@@ -13,7 +13,7 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/next-registration-number/':'MDC-P-REG',
     '/_b_a_c_k_e_n_d/Milestone/referral-doctor/list/':'MDC-API-RDL',
     '/_b_a_c_k_e_n_d/Milestone/referral-doctor/register/':'MDC-P-REG',
-    '/_b_a_c_k_e_n_d/Milestone/register/':'MDC-P-REG',   
+    '/_b_a_c_k_e_n_d/Milestone/register/':'MDC-P-REG',
     '/_b_a_c_k_e_n_d/Milestone/referrals/?(\?.*)?$':'MDC-P-SOR',
     '/_b_a_c_k_e_n_d/Milestone/therapy_billing/':'MDC-P-TRB',
     '/_b_a_c_k_e_n_d/Milestone/update-patient/?(\?.*)?$':'MDC-P-PTE',
@@ -40,7 +40,7 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/save-patient-skill/':'',
     '/_b_a_c_k_e_n_d/Milestone/pediatric_assessment_list/':'',
     '/_b_a_c_k_e_n_d/Milestone/reg_no/<str:prefix>/<str:id>/<str:year>/':'',
-    '/_b_a_c_k_e_n_d/Milestone/all-patients/':'',    
+    '/_b_a_c_k_e_n_d/Milestone/all-patients/':'',
     '/_b_a_c_k_e_n_d/Milestone/employeeregistration/':'',
     '/_b_a_c_k_e_n_d/Milestone/save-mchat-response/':'',
     '/_b_a_c_k_e_n_d/Milestone/get-mchat/<path:registration_number>/':'',
@@ -55,7 +55,7 @@ PAGE_MAPPING = {
 
     '/therapy-reports/':'MDC-API-THR',
     '/get_patient_assessments/':'MDC-API-GAS',
-    '/others-reports/':'MDC-API-RTS',   
+    '/others-reports/':'MDC-API-RTS',
     '/get-latest-billing-no/':'MDC-API-LBN',
     '/get-consulting-doctors/':'MDC-API-CDR',
     '/save-consulting-doctor/':'MDC-P-ASM',
@@ -67,14 +67,12 @@ PAGE_MAPPING = {
     '/next-registration-number/':'MDC-P-REG',
     '/referral-doctor/list/':'MDC-P-REG',
     '/referral-doctor/register/':'MDC-P-REG',
-    '/register/':'MDC-P-REG',   
+    '/register/':'MDC-P-REG',
     '/referrals/':'MDC-P-SOR',
     '/therapy_billing/':'MDC-P-TRB',
      '/update-patient/?(\?.*)?$':'',
     '/update-doctor/?(\?.*)?$':'',
     '/update-employeeDr/?(\?.*)?$':'',
-
-
     '/all-assessments/':'',
     '/login/':'',
     '/developmental-tasks/':'',
@@ -83,7 +81,7 @@ PAGE_MAPPING = {
     '/save-patient-skill/':'',
     '/pediatric_assessment_list/':'',
     '/reg_no/<str:prefix>/<str:id>/<str:year>/':'',
-    '/all-patients/':'',    
+    '/all-patients/':'',
     '/employeeregistration/':'',
     '/save-mchat-response/':'',
     '/get-mchat/<path:registration_number>/':'',
@@ -96,13 +94,11 @@ PAGE_MAPPING = {
     '/get-cbcl/':'',
     '/get-cbcl/<str:childName>/':'',
 }
-
 PAGE_ACTION_MAPPING = {
     'xxx': {
         'DELETE':'RWD',
     },
 }
-
 GEN_ACTION_MAPPING = {
     'POST': 'RW',
     'PUT': 'RW',

@@ -298,7 +298,7 @@ class PatientAttendance(models.Model):
     registration_number = models.CharField(max_length=50)
     date = models.DateField(default=date.today)
     session = models.CharField(max_length=50)
-    therapy_charge = models.IntegerField(max_length=50)
+    therapy_charge = models.IntegerField()
     is_active = models.BooleanField(default=True)  # new field
 
     def __str__(self):

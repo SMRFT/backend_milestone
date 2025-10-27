@@ -94,12 +94,12 @@ ENV_TYPE = os.environ.get("ENV_CLASSIFICATION", "local")
 MILESTONE_DB_NAME = os.environ.get("MILESTONE_DB_NAME", "Milestone")
 
 if ENV_TYPE == "local":
-    DB_HOST = os.environ.get("MILESTONE_DB_HOST")
+    DB_HOST = os.environ.get("GLOBAL_DB_HOST")
     CLIENT_OPTIONS = {
         'host': DB_HOST,
     }
 else:  # test
-    DB_HOST = os.environ.get("MILESTONE_DB_HOST")
+    DB_HOST = os.environ.get("GLOBAL_DB_HOST")
     CLIENT_OPTIONS = {
         'host': DB_HOST,
         # No TLS options for test env

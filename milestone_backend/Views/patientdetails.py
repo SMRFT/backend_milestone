@@ -356,6 +356,7 @@ from ..models import Registration, PatientAttendance
 from ..serializers import RegistrationSerializer, PatientAttendanceSerializer
 
 @api_view(['GET'])
+@permission_classes([HasRolePermission])
 def get_all_patient_details(request):
     patients = Registration.objects.all()
     # print(patients)
@@ -365,6 +366,7 @@ def get_all_patient_details(request):
 from datetime import datetime, timedelta
 
 @api_view(['POST'])
+@permission_classes([HasRolePermission])
 def add_patient_attendance(request):
     registration_number = request.data.get('registration_number')
     date_str = request.data.get('date')
@@ -426,6 +428,7 @@ attendance_col = db["milestone_backend_patientattendance"]
 registration_col = db["milestone_backend_registration"]
 
 @api_view(['GET'])
+@permission_classes([HasRolePermission])
 def get_all_patient_attendance(request):
     # MongoDB collections
     mongo_uri = os.environ.get("GLOBAL_DB_HOST")
@@ -468,6 +471,7 @@ def get_all_patient_attendance(request):
     return Response(combined_data, status=status.HTTP_200_OK)
 
 @api_view(['PATCH'])
+@permission_classes([HasRolePermission])
 def edit_patient_attendance(request):
     record_id = request.data.get("_id")
     if not record_id:
@@ -494,6 +498,7 @@ def edit_patient_attendance(request):
     return Response({"message": "Updated successfully", "updated_record": updated_doc})
 
 @api_view(['DELETE'])
+@permission_classes([HasRolePermission])
 def delete_patient_attendance(request):
     record_id = request.data.get("_id")
     if not record_id:

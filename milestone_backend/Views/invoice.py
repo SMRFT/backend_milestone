@@ -159,7 +159,7 @@ def update_payment(request):
     assessment_collection = db['milestone_backend_patientassessment']
 
     data = request.data
-    print("data",data)
+
     age = data.get('age')
     billing_no = data.get('billing_no')
     paid_amount = data.get('paid_amount', 0)  # Remove float() conversion

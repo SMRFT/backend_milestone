@@ -48,7 +48,7 @@ def pendingPayment(request):
             .annotate(latest_billing_no=Max("billing_no"))
         )
         
-        print(f"Latest bills count: {len(latest_bills)}")
+        # print(f"Latest bills count: {len(latest_bills)}")
         for bill in latest_bills:
             print(f"Latest bill: {bill}")
         
@@ -57,15 +57,15 @@ def pendingPayment(request):
             billing_no__in=[entry["latest_billing_no"] for entry in latest_bills]
         )
         
-        print(f"Latest records count: {latest_records.count()}")
+        # print(f"Latest records count: {latest_records.count()}")
         
         # Step 4: Debug each record's remaining_amount field
         pending_records = []
         for record in latest_records:
-            print(f"\n--- Processing record: {record.billing_no} ---")
-            print(f"Name: {record.name}")
-            print(f"Remaining amount raw: {record.remaining_amount}")
-            print(f"Remaining amount type: {type(record.remaining_amount)}")
+            # print(f"\n--- Processing record: {record.billing_no} ---")
+            # print(f"Name: {record.name}")
+            # print(f"Remaining amount raw: {record.remaining_amount}")
+            # print(f"Remaining amount type: {type(record.remaining_amount)}")
             
             try:
                 # Handle different possible data types
@@ -77,7 +77,7 @@ def pendingPayment(request):
                     print(f"Unexpected type for remaining_amount: {type(record.remaining_amount)}")
                     continue
                 
-                print(f"Parsed remaining_amount: {remaining_amount_data}")
+                # print(f"Parsed remaining_amount: {remaining_amount_data}")
                 
                 status = remaining_amount_data.get('status')
                 value = remaining_amount_data.get('value', 0)
@@ -86,7 +86,7 @@ def pendingPayment(request):
                 
                 # Check if status is "Pending" and value is greater than 0
                 if status == 'Pending' and value > 0:
-                    print(f"✓ Record {record.billing_no} added to pending_records")
+                    # print(f"✓ Record {record.billing_no} added to pending_records")
                     pending_records.append(record)
                 else:
                     print(f"✗ Record {record.billing_no} NOT added - Status: {status}, Value: {value}")
@@ -95,7 +95,7 @@ def pendingPayment(request):
                 print(f"Error parsing remaining_amount for {record.billing_no}: {e}")
                 continue
         
-        print(f"\nFinal pending records count: {len(pending_records)}")
+        # print(f"\nFinal pending records count: {len(pending_records)}")
         
         # Step 5: Serialize and return
         serializer = TherapyBillingSerializer(pending_records, many=True)
@@ -159,13 +159,14 @@ def update_payment(request):
     assessment_collection = db['milestone_backend_patientassessment']
 
     data = request.data
+    print("data",data)
     age = data.get('age')
     billing_no = data.get('billing_no')
     paid_amount = data.get('paid_amount', 0)  # Remove float() conversion
     discount = data.get('discount', 0)  # Remove float() conversion
     discount_remarks = data.get('discount_remarks', "")
     payment_method = data.get('payment_method', "")
-    
+  
     # Extract employee ID for audit tracking
     employee_id = data.get('auth-user-id')
 
@@ -174,6 +175,9 @@ def update_payment(request):
 
     # Fetch the existing bill
     patient = therapy_collection.find_one({'billing_no': billing_no})
+    attendance_date = patient.get('attendance_date')  # ✅ Added
+    # print("attendance_date",attendance_date)
+    # print("patient",patient)
     if not patient:
         return JsonResponse({'error': 'Patient not found.'}, status=404)
 
@@ -257,6 +261,7 @@ def update_payment(request):
     new_bill["payment_method"] = payment_method
     new_bill["age"] = age
     new_bill["date"] = current_indian_time  # Store current Indian time
+    new_bill["attendance_date"] = attendance_date  # ✅ Added here
     
     # Add audit fields for the new bill
     if employee_id:

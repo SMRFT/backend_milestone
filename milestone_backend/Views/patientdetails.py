@@ -364,8 +364,17 @@ def get_all_patient_details(request):
 
 from datetime import datetime, timedelta
 
+from datetime import datetime, timedelta, date
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework import status
+from milestone_backend.models import PatientAttendance
+from milestone_backend.serializers import PatientAttendanceSerializer
+
 @api_view(['POST'])
+@permission_classes([HasRolePermission])
 def add_patient_attendance(request):
+    employee_id = request.data.get('auth-user-id')
     registration_number = request.data.get('registration_number')
     date_str = request.data.get('date')
 
@@ -375,6 +384,7 @@ def add_patient_attendance(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    # Parse date
     try:
         date_obj = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
     except ValueError:
@@ -383,18 +393,19 @@ def add_patient_attendance(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # Compute first and last day of the month
+    # First and last day of the month
     first_day = date_obj.replace(day=1)
     if date_obj.month == 12:
         last_day = date_obj.replace(year=date_obj.year + 1, month=1, day=1) - timedelta(seconds=1)
     else:
         last_day = date_obj.replace(month=date_obj.month + 1, day=1) - timedelta(seconds=1)
 
-    # Check for existing attendance in the month
+    # Check for existing attendance in same month
     existing_attendance = PatientAttendance.objects.filter(
         registration_number=registration_number,
         date__gte=first_day,
-        date__lte=last_day
+        date__lte=last_day,
+        is_active=True
     ).first()
 
     if existing_attendance:
@@ -403,11 +414,17 @@ def add_patient_attendance(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    # Add audit fields before saving
     serializer = PatientAttendanceSerializer(data=request.data)
     if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        instance = serializer.save(
+            created_by=employee_id,
+            lastmodified_by=employee_id,
+            lastmodified_date=datetime.now()
+        )
+        return Response(PatientAttendanceSerializer(instance).data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -468,8 +485,11 @@ def get_all_patient_attendance(request):
     return Response(combined_data, status=status.HTTP_200_OK)
 
 @api_view(['PATCH'])
+@permission_classes([HasRolePermission])
 def edit_patient_attendance(request):
+    employee_id = request.data.get('auth-user-id')
     record_id = request.data.get("_id")
+
     if not record_id:
         return Response({"error": "_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -484,8 +504,18 @@ def edit_patient_attendance(request):
     if not update_data:
         return Response({"error": "No valid fields to update"}, status=status.HTTP_400_BAD_REQUEST)
 
+    # Add audit info for modification
+    update_data.update({
+        "lastmodified_by": employee_id,
+        "lastmodified_date": datetime.now()
+    })
+
     # Only update if record is active
-    result = attendance_col.update_one({"_id": obj_id, "is_active": True}, {"$set": update_data})
+    result = attendance_col.update_one(
+        {"_id": obj_id, "is_active": True},
+        {"$set": update_data}
+    )
+
     if result.matched_count == 0:
         return Response({"error": "Attendance not found or inactive"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -494,19 +524,32 @@ def edit_patient_attendance(request):
     return Response({"message": "Updated successfully", "updated_record": updated_doc})
 
 @api_view(['DELETE'])
+@permission_classes([HasRolePermission])
 def delete_patient_attendance(request):
+    employee_id = request.data.get('auth-user-id')
     record_id = request.data.get("_id")
+
     if not record_id:
         return Response({"error": "_id is required"}, status=status.HTTP_400_BAD_REQUEST)
-    
+
     try:
         obj_id = ObjectId(record_id)
     except Exception:
         return Response({"error": "Invalid _id"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Soft delete
-    result = attendance_col.update_one({"_id": obj_id, "is_active": True}, {"$set": {"is_active": False}})
+
+    # Soft delete + audit tracking
+    result = attendance_col.update_one(
+        {"_id": obj_id, "is_active": True},
+        {
+            "$set": {
+                "is_active": False,
+                "lastmodified_by": employee_id,
+                "lastmodified_date": datetime.now()
+            }
+        }
+    )
+
     if result.matched_count == 0:
         return Response({"error": "Attendance not found or already inactive"}, status=status.HTTP_404_NOT_FOUND)
-    
+
     return Response({"message": "Deleted successfully"})

@@ -1,4 +1,4 @@
-AGE_MAPPING = {
+PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/therapy-reports/?(\?.*)?$':'MDC-API-THR',
     '/_b_a_c_k_e_n_d/Milestone/get_patient_assessments/?(\?.*)?$':'MDC-API-GAS',
     '/_b_a_c_k_e_n_d/Milestone/others-reports/?(\?.*)?$':'MDC-API-RTS',

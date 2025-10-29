@@ -83,112 +83,166 @@ def get_therapy_reports(request):
     serializer = TherapyBillingSerializer(therapy_billing_data, many=True)
     return Response(serializer.data)
 
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework import status
-from pymongo import MongoClient, DESCENDING
 from datetime import datetime
-import os, json
-
+from dateutil.relativedelta import relativedelta
+from pymongo import MongoClient
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from pymongo import MongoClient, DESCENDING
 import os, json
 
 @api_view(['GET'])
 def pending_payment_report(request):
-    mongo_uri = os.environ.get("GLOBAL_DB_HOST")
-    client = MongoClient(mongo_uri)
-    db = client["Milestone"]
+    try:
+        # --- MongoDB Connection ---
+        mongo_uri = os.environ.get("GLOBAL_DB_HOST")
+        client = MongoClient(mongo_uri)
+        db = client["Milestone"]
 
-    attendance_col = db['milestone_backend_patientattendance']
-    billing_col = db['milestone_backend_therapybilling']
-    registration_col = db['milestone_backend_registration']
+        attendance_col = db['milestone_backend_patientattendance']
+        billing_col = db['milestone_backend_therapybilling']
+        registration_col = db['milestone_backend_registration']
 
-    result = []
+        # --- Helper: Calculate Age ---
+        def calculate_age(dob):
+            if not dob:
+                return {"year": 0, "months": 0, "days": 0}
+            today = datetime.today()
+            delta = relativedelta(today, dob)
+            return {"year": delta.years, "months": delta.months, "days": delta.days}
 
-    # Fetch all billings once to optimize
-    all_billings = list(billing_col.find())
+        final_output = []
 
-    # ✅ Only active attendance
-    for attendance in attendance_col.find({"is_active": True}):
-        reg_no = attendance.get('registration_number')
-        therapy_charge = float(attendance.get('therapy_charge', 0))
-        att_date = attendance.get('date')
+        # --- Get all active attendances ---
+        active_attendances = list(attendance_col.find({"is_active": True}))
 
-        # Get registration details
-        registration = registration_col.find_one({'registration_number': reg_no})
-        if not registration:
-            continue
+        for att in active_attendances:
+            reg_no = att.get("registration_number")
+            if not reg_no:
+                continue
 
-        name = registration.get('name_of_child')
-        gender = registration.get('sex')
-        dob = registration.get('dob')
-        age = registration.get('age')
+            # --- Attendance date ---
+            att_date = att.get("date") or att.get("attendance_date")
+            if isinstance(att_date, datetime):
+                att_date_str = att_date.strftime("%Y-%m-%dT00:00:00Z")
+            else:
+                att_date_str = str(att_date)
 
-        # Parse age if stored as string
-        if isinstance(age, str):
-            try:
-                age = json.loads(age)
-            except:
-                age = {}
+            therapy_charge = float(att.get("therapy_charge", 0))
 
-        # --- Check for duplicate: same date in billing ---
-        duplicate_found = False
-        for bill in all_billings:
-            if bill.get('registration_number') == reg_no:
-                bill_date = bill.get('date')
-                if bill_date and att_date:
-                    # Compare date (ignore time)
-                    if bill_date.date() == att_date.date():
-                        duplicate_found = True
-                        break
+            # --- Registration details ---
+            reg = registration_col.find_one({"registration_number": reg_no})
+            if not reg:
+                continue
 
-        if duplicate_found:
-            continue  # Skip duplicate entries (already billed same date)
+            name = reg.get("name_of_child")
+            gender = reg.get("sex")
+            dob = reg.get("dob")
 
-        # --- Get latest billing (if not same date) ---
-        last_billing = billing_col.find({'registration_number': reg_no}).sort('date', DESCENDING).limit(1)
-        last_billing = list(last_billing)
+            if isinstance(dob, str):
+                try:
+                    dob_obj = datetime.strptime(dob[:10], "%Y-%m-%d")
+                except:
+                    dob_obj = None
+            else:
+                dob_obj = dob
 
-        if not last_billing:
-            # No billing found → full therapy charge pending
-            result.append({
-                "date": att_date,
+            age = calculate_age(dob_obj) if dob_obj else {"year": 0, "months": 0, "days": 0}
+
+            # --- Find matching bills for same reg_no and attendance_date ---
+            bills = list(billing_col.find({
+                "registration_number": reg_no,
+                "attendance_date": {"$exists": True}
+            }))
+
+            matched_bills = []
+            total_pending = 0
+            fully_paid_session = False
+
+            for b in bills:
+                b_att_date = b.get("attendance_date")
+
+                if isinstance(b_att_date, dict) and "$date" in b_att_date:
+                    b_att_date = datetime.fromisoformat(
+                        b_att_date["$date"].replace("Z", "+00:00")
+                    ).strftime("%Y-%m-%dT00:00:00Z")
+                elif isinstance(b_att_date, datetime):
+                    b_att_date = b_att_date.strftime("%Y-%m-%dT00:00:00Z")
+                else:
+                    b_att_date = str(b_att_date)
+
+                # --- Match exact attendance date ---
+                if b_att_date != att_date_str:
+                    continue
+
+                # --- Parse remaining_amount safely ---
+                remaining_raw = b.get("remaining_amount", {})
+                remaining_data = {}
+                if isinstance(remaining_raw, str):
+                    try:
+                        remaining_data = json.loads(remaining_raw.replace("'", '"'))
+                    except:
+                        remaining_data = {}
+                elif isinstance(remaining_raw, dict):
+                    remaining_data = remaining_raw
+
+                remaining_value = float(remaining_data.get("value", 0))
+                status = remaining_data.get("status", "Pending")
+
+                # --- If fully paid, mark and skip this session entirely ---
+                if remaining_value <= 0:
+                    fully_paid_session = True
+                    break
+
+                total_pending += remaining_value
+
+                matched_bills.append({
+                    "billing_no": b.get("billing_no"),
+                    "therapy_charge": float(b.get("therapy_charge", 0)),
+                    "amount_paid": float(b.get("amount_paid", 0)),
+                    "remaining_value": remaining_value,
+                    "status": status,
+                    "paid_date": remaining_data.get("paid_date"),
+                    "new_bill_no": remaining_data.get("new_bill_no"),
+                    "attendance_date": att_date_str
+                })
+
+            # --- Exclude fully paid sessions completely ---
+            if fully_paid_session:
+                continue
+
+            # --- If no bills found (unbilled) ---
+            if not matched_bills:
+                final_output.append({
+                    "registration_number": reg_no,
+                    "name": name,
+                    "gender": gender,
+                    "dob": dob,
+                    "age": age,
+                    "attendance_dates": [att_date_str],
+                    "therapy_charge": therapy_charge,
+                    "amount_pending": therapy_charge,
+                    "date": att_date_str,
+                    "bills": [],
+                    "status": "Unbilled"
+                })
+                continue
+
+            # --- If partial payment exists ---
+            final_output.append({
                 "registration_number": reg_no,
                 "name": name,
+                "gender": gender,
                 "dob": dob,
                 "age": age,
-                "gender": gender,
+                "attendance_dates": [att_date_str],
                 "therapy_charge": therapy_charge,
-                "amount_pending": therapy_charge
+                "amount_pending": total_pending,
+                "date": att_date_str,
+                "bills": matched_bills,
+                "status": "Partially Paid"
             })
-            continue
 
-        last_bill = last_billing[0]
-        remaining_json = last_bill.get('remaining_amount', {})
-        remaining_value = 0.0
+        return Response(final_output)
 
-        if isinstance(remaining_json, str):
-            try:
-                remaining_json = json.loads(remaining_json.replace("'", '"'))
-            except:
-                remaining_json = {}
-
-        remaining_value = float(remaining_json.get('value', 0))
-
-        # If remaining amount not available, set it as therapy charge
-        amount_pending = remaining_value if remaining_value > 0 else therapy_charge
-
-        result.append({
-            "date": att_date,
-            "registration_number": reg_no,
-            "name": name,
-            "dob": dob,
-            "age": age,
-            "gender": gender,
-            "therapy_charge": therapy_charge,
-            "amount_pending": amount_pending
-        })
-
-    return Response(result, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)

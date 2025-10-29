@@ -156,6 +156,7 @@ class TherapyBilling(AuditModel):
     father_phone_number = models.CharField(max_length=15, blank=True)   
     mother_phone_number = models.CharField(max_length=15, blank=True) 
     date = models.DateTimeField(auto_now_add=True)   
+    attendance_date = models.DateField(null=True, blank=True) 
     def __str__(self):
         return f"Billing No: {self.billing_no} - {self.name}"
     
@@ -294,7 +295,7 @@ class ConsultingDoctor(AuditModel):
 from django.db import models
 from datetime import date
 
-class PatientAttendance(models.Model):
+class PatientAttendance(AuditModel):
     registration_number = models.CharField(max_length=50)
     date = models.DateField(default=date.today)
     session = models.CharField(max_length=50)

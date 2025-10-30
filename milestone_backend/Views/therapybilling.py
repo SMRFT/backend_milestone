@@ -160,7 +160,7 @@ def pending_payment_report(request):
 
             for b in bills:
                 b_att_date = b.get("attendance_date")
-
+                # print("``````````````````````````````````````````````````````````",b)
                 if isinstance(b_att_date, dict) and "$date" in b_att_date:
                     b_att_date = datetime.fromisoformat(
                         b_att_date["$date"].replace("Z", "+00:00")
@@ -201,9 +201,10 @@ def pending_payment_report(request):
                     "amount_paid": float(b.get("amount_paid", 0)),
                     "remaining_value": remaining_value,
                     "status": status,
-                    "paid_date": remaining_data.get("paid_date"),
+                    "paid_date":b.get("date"),
                     "new_bill_no": remaining_data.get("new_bill_no"),
                     "attendance_date": att_date_str
+
                 })
 
             # --- Exclude fully paid sessions completely ---

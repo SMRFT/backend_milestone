@@ -29,6 +29,7 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/get_all_patient_attendance/':'MDC-API-AT',
     '/_b_a_c_k_e_n_d/Milestone/edit_patient_attendance/':'MDC-API-AT',
     '/_b_a_c_k_e_n_d/Milestone/delete_patient_attendance/':'MDC-API-AT',
+    "/_b_a_c_k_e_n_d/Milestone/get_all_patient_details/":'MDC-API-AT',
     '/_b_a_c_k_e_n_d/Milestone/all-assessments/':'',
     '/_b_a_c_k_e_n_d/Milestone/login/':'',
     '/_b_a_c_k_e_n_d/Milestone/developmental-tasks/':'',

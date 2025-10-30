@@ -356,6 +356,7 @@ from ..models import Registration, PatientAttendance
 from ..serializers import RegistrationSerializer, PatientAttendanceSerializer
 
 @api_view(['GET'])
+@permission_classes([HasRolePermission])
 def get_all_patient_details(request):
     patients = Registration.objects.all()
     # print(patients)

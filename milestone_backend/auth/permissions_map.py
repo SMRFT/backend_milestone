@@ -21,6 +21,7 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/update-employeeDr(?:/[^/]+)+/$':'MDC-P-CDE',
     
     #attendance
+    '/_b_a_c_k_e_n_d/Milestone/pending-payments/':'MDC-P-PNPR',
     '/_b_a_c_k_e_n_d/Milestone/get_all_patient_details/':'MDC-API-AT',
     '/_b_a_c_k_e_n_d/Milestone/attendance/':'MDC-API-AT',
     '/_b_a_c_k_e_n_d/Milestone/all-attendance-patient/':'MDC-API-AT',

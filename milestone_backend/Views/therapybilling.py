@@ -91,6 +91,7 @@ from rest_framework.response import Response
 import os, json
 
 @api_view(['GET'])
+@permission_classes([HasRolePermission])
 def pending_payment_report(request):
     try:
         # --- MongoDB Connection ---

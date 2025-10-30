@@ -443,6 +443,7 @@ attendance_col = db["milestone_backend_patientattendance"]
 registration_col = db["milestone_backend_registration"]
 
 @api_view(['GET'])
+@permission_classes([HasRolePermission])
 def get_all_patient_attendance(request):
     # MongoDB collections
     mongo_uri = os.environ.get("GLOBAL_DB_HOST")

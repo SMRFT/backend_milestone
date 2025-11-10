@@ -27,19 +27,19 @@ from django.utils.dateparse import parse_date
 @permission_classes([HasRolePermission])
 def register_referral_doctor(request):
     if request.method == 'POST':
-        print("=== DEBUG INFO ===")
-        print("Request data:", request.data)
-        print("Content type:", request.content_type)
+        # print("=== DEBUG INFO ===")
+        # print("Request data:", request.data)
+        # print("Content type:", request.content_type)
         
         employee_id = request.data.get('auth-user-id')
-        print("Employee ID:", employee_id)
+        # print("Employee ID:", employee_id)
         
         serializer = ReferralDoctorSerializer(
             data=request.data, 
             context={'employee_id': employee_id}
         )
         
-        print("Serializer valid:", serializer.is_valid())
+        # print("Serializer valid:", serializer.is_valid())
         if not serializer.is_valid():
             print("Serializer errors:", serializer.errors)
             return Response({
@@ -49,7 +49,7 @@ def register_referral_doctor(request):
         
         try:
             doctor = serializer.save()
-            print("Doctor saved successfully:", doctor.id)
+            # print("Doctor saved successfully:", doctor.id)
             return Response({
                 "message": "Referral Doctor registered successfully!",
                 "referral_id": doctor.referral_id,

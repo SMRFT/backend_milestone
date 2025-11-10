@@ -156,7 +156,7 @@ class TherapyBilling(AuditModel):
     father_phone_number = models.CharField(max_length=15, blank=True)   
     mother_phone_number = models.CharField(max_length=15, blank=True) 
     date = models.DateTimeField(auto_now_add=True)   
-    attendance_date = models.DateField(null=True, blank=True) 
+    attendance_date = models.DateField(blank=True) 
     def __str__(self):
         return f"Billing No: {self.billing_no} - {self.name}"
     
@@ -281,7 +281,7 @@ class CBCL(AuditModel):
 
 
 class ConsultingDoctor(AuditModel):
-    employee_id = models.CharField(max_length=100)
+    employee_id = models.CharField(max_length=100,blank=True)
     name = models.CharField(max_length=100)
     designation = models.CharField(max_length=100, blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
@@ -299,8 +299,22 @@ class PatientAttendance(AuditModel):
     registration_number = models.CharField(max_length=50)
     date = models.DateField(default=date.today)
     session = models.CharField(max_length=50)
-    therapy_charge = models.IntegerField(max_length=50)
-    is_active = models.BooleanField(default=True)  # new field
+
+    # --- Store total charge (calculated sum of selected therapies) ---
+    therapy_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # --- Store all selected therapy details (list of JSON objects) ---
+    therapy_details = models.JSONField(default=list, blank=True)
+    # --- New Fields ---
+    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    is_approved = models.BooleanField(default=True)
+
+    # --- Soft delete / active flag ---
+    is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return f"{self.registration_number} - {self.date}"
+
+    class Meta:
+        verbose_name = "PatientAttendance"
+        verbose_name_plural = "PatientAttendances"

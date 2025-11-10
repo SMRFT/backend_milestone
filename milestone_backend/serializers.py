@@ -235,7 +235,7 @@ class PatientAttendanceSerializer(serializers.ModelSerializer):
     id = ObjectIdField(read_only=True)
     class Meta:
         model = PatientAttendance
-        fields = ['id', 'registration_number', 'date', 'session', 'therapy_charge']
+        fields =  '__all__' # ['id', 'registration_number', 'date', 'session', 'therapy_charge']
 
 
 

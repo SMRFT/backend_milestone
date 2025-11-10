@@ -83,11 +83,13 @@ def get_therapy_reports(request):
     serializer = TherapyBillingSerializer(therapy_billing_data, many=True)
     return Response(serializer.data)
 
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
-from pymongo import MongoClient
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
+from datetime import datetime
+from bson.decimal128 import Decimal128
+from dateutil.relativedelta import relativedelta
+from decimal import Decimal
+from pymongo import MongoClient
 import os, json
 
 @api_view(['GET'])
@@ -102,6 +104,22 @@ def pending_payment_report(request):
         attendance_col = db['milestone_backend_patientattendance']
         billing_col = db['milestone_backend_therapybilling']
         registration_col = db['milestone_backend_registration']
+
+        # --- Helper: Safe Float Converter ---
+        def safe_float(value):
+            """Convert MongoDB Decimal128, Decimal, or any numeric safely to float."""
+            try:
+                if isinstance(value, Decimal128):
+                    return float(value.to_decimal())
+                if isinstance(value, Decimal):
+                    return float(value)
+                if isinstance(value, (int, float)):
+                    return float(value)
+                if isinstance(value, str):
+                    return float(value.strip())
+            except Exception:
+                return 0.0
+            return 0.0
 
         # --- Helper: Calculate Age ---
         def calculate_age(dob):
@@ -128,7 +146,7 @@ def pending_payment_report(request):
             else:
                 att_date_str = str(att_date)
 
-            therapy_charge = float(att.get("therapy_charge", 0))
+            therapy_charge = safe_float(att.get("therapy_charge", 0))
 
             # --- Registration details ---
             reg = registration_col.find_one({"registration_number": reg_no})
@@ -149,7 +167,7 @@ def pending_payment_report(request):
 
             age = calculate_age(dob_obj) if dob_obj else {"year": 0, "months": 0, "days": 0}
 
-            # --- Find matching bills for same reg_no and attendance_date ---
+            # --- Find matching bills for same reg_no ---
             bills = list(billing_col.find({
                 "registration_number": reg_no,
                 "attendance_date": {"$exists": True}
@@ -161,7 +179,7 @@ def pending_payment_report(request):
 
             for b in bills:
                 b_att_date = b.get("attendance_date")
-                # print("``````````````````````````````````````````````````````````",b)
+
                 if isinstance(b_att_date, dict) and "$date" in b_att_date:
                     b_att_date = datetime.fromisoformat(
                         b_att_date["$date"].replace("Z", "+00:00")
@@ -177,7 +195,6 @@ def pending_payment_report(request):
 
                 # --- Parse remaining_amount safely ---
                 remaining_raw = b.get("remaining_amount", {})
-                remaining_data = {}
                 if isinstance(remaining_raw, str):
                     try:
                         remaining_data = json.loads(remaining_raw.replace("'", '"'))
@@ -185,11 +202,13 @@ def pending_payment_report(request):
                         remaining_data = {}
                 elif isinstance(remaining_raw, dict):
                     remaining_data = remaining_raw
+                else:
+                    remaining_data = {}
 
-                remaining_value = float(remaining_data.get("value", 0))
+                remaining_value = safe_float(remaining_data.get("value", 0))
                 status = remaining_data.get("status", "Pending")
 
-                # --- If fully paid, mark and skip this session entirely ---
+                # --- Skip if fully paid ---
                 if remaining_value <= 0:
                     fully_paid_session = True
                     break
@@ -198,21 +217,20 @@ def pending_payment_report(request):
 
                 matched_bills.append({
                     "billing_no": b.get("billing_no"),
-                    "therapy_charge": float(b.get("therapy_charge", 0)),
-                    "amount_paid": float(b.get("amount_paid", 0)),
+                    "therapy_charge": safe_float(b.get("therapy_charge", 0)),
+                    "amount_paid": safe_float(b.get("amount_paid", 0)),
                     "remaining_value": remaining_value,
                     "status": status,
-                    "paid_date":b.get("date"),
+                    "paid_date": b.get("date"),
                     "new_bill_no": remaining_data.get("new_bill_no"),
                     "attendance_date": att_date_str
-
                 })
 
-            # --- Exclude fully paid sessions completely ---
+            # --- Exclude fully paid sessions ---
             if fully_paid_session:
                 continue
 
-            # --- If no bills found (unbilled) ---
+            # --- Unbilled sessions ---
             if not matched_bills:
                 final_output.append({
                     "registration_number": reg_no,
@@ -229,7 +247,7 @@ def pending_payment_report(request):
                 })
                 continue
 
-            # --- If partial payment exists ---
+            # --- Partial payment sessions ---
             final_output.append({
                 "registration_number": reg_no,
                 "name": name,

@@ -137,6 +137,7 @@ from rest_framework.response import Response
 from datetime import datetime
 from ..models import Registration, PatientAssessment, PatientAttendance
 from ..serializers import RegistrationSerializer
+import json
 
 @api_view(['GET'])
 @permission_classes([HasRolePermission])
@@ -163,52 +164,120 @@ def get_all_patients(request):
     # Return the patient data in the response
     return Response(patient_data)
 
+from bson import Decimal128
+from decimal import Decimal
+import json
+from datetime import datetime
+
+client = MongoClient(mongo_uri)
+db = client["Milestone"]
+
+def safe_float(value):
+    """Convert MongoDB Decimal128, dict, Decimal, or other types safely to float."""
+    if value is None:
+        return 0.0
+
+    if isinstance(value, Decimal128):
+        return float(value.to_decimal())
+
+    if isinstance(value, Decimal):
+        return float(value)
+
+    if isinstance(value, dict) and "$numberDecimal" in value:
+        try:
+            return float(value["$numberDecimal"])
+        except Exception:
+            return 0.0
+
+    try:
+        return float(value)
+    except Exception:
+        return 0.0
+
 @api_view(['GET'])
 @permission_classes([HasRolePermission])
 def get_all_attendance_patients(request):
-    patients = Registration.objects.all()
-    attendances = PatientAttendance.objects.filter()
+    """
+    ✅ Get all patients with attendance records
+    - Includes therapy details, discounts, approval status
+    - Ignores missing fields gracefully
+    - Only includes active attendances
+    """
+    try:
+        registration_col = db["milestone_backend_registration"]
+        attendance_col = db["milestone_backend_patientattendance"]
 
-    # Map patient registration_number -> list of attendances
-    attendance_map = {}
-    for att in attendances:
-        reg_no = att.registration_number
-        if reg_no not in attendance_map:
-            attendance_map[reg_no] = []
-        attendance_map[reg_no].append(att)
+        # --- Fetch all registrations ---
+        registrations = list(registration_col.find({}, {"_id": 0}))
 
-    response_data = []
+        # --- Fetch attendances (filter only is_active=True) ---
+        attendances = list(attendance_col.find({"is_active": True}))
 
-    for patient in patients:
-        patient_info = RegistrationSerializer(patient).data
-        reg_no = patient_info.get("registration_number")
+        attendance_map = {}
 
-        patient_attendances = attendance_map.get(reg_no, [])
+        for att in attendances:
+            reg_no = att.get("registration_number")
+            if not reg_no:
+                continue
 
-        if patient_attendances:
-            for att in patient_attendances:
+            # Skip unapproved records only if field exists and is False
+            if "is_approved" in att and not att.get("is_approved", False):
+                continue
+
+            # Parse therapy_details (string → list)
+            therapy_details = att.get("therapy_details", [])
+            if isinstance(therapy_details, str):
+                try:
+                    therapy_details = json.loads(therapy_details)
+                except:
+                    therapy_details = []
+
+            attendance_info = {
+                "_id": str(att.get("_id", "")),
+                "date": (
+                    att.get("date").strftime("%Y-%m-%d")
+                    if isinstance(att.get("date"), datetime)
+                    else str(att.get("date"))
+                ),
+                "session": att.get("session"),
+                "therapy_charge": safe_float(att.get("therapy_charge")),
+                "discount": safe_float(att.get("discount")) if "discount" in att else 0.0,
+                "is_approved": att.get("is_approved", True),
+                "therapy_details": therapy_details,
+            }
+
+            if reg_no not in attendance_map:
+                attendance_map[reg_no] = []
+            attendance_map[reg_no].append(attendance_info)
+
+        # Merge patient info + attendance
+        response_data = []
+        for patient in registrations:
+            reg_no = patient.get("registration_number")
+            patient_attendances = attendance_map.get(reg_no, [])
+
+            if patient_attendances:
+                total_charge = sum(a["therapy_charge"] for a in patient_attendances)
+                total_sessions = sum(
+                    int(a["session"]) if str(a["session"]).isdigit() else 0
+                    for a in patient_attendances
+                )
+
                 response_data.append({
-                    **patient_info,
-                    "attendances": [{
-                        "date": att.date.strftime("%Y-%m-%d") if att.date else None,
-                        "session": att.session,
-                        "therapy_charge": att.therapy_charge,
-                        "_id": str(att.id) if att.id else "None",
-                    }],
-                    "total_therapy_charge": att.therapy_charge,
-                    "total_sessions": att.session
+                    **patient,
+                    "attendances": patient_attendances,
+                    "total_therapy_charge": total_charge,
+                    "total_sessions": total_sessions
                 })
-        # else:
-        #     # Patient with no attendance
-        #     response_data.append({
-        #         **patient_info,
-        #         "attendances": [],
-        #         "therapy_charge": 0,
-        #         "sessions": 0
-        #     })
 
-    return Response(response_data)
+        return Response(response_data, status=status.HTTP_200_OK)
 
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+   
 @api_view(['GET'])
 @permission_classes([HasRolePermission])    
 def get_all_assessments(request):
@@ -364,9 +433,7 @@ def get_all_patient_details(request):
     return Response(serializer.data)
 
 from datetime import datetime, timedelta
-
-from datetime import datetime, timedelta, date
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
 from milestone_backend.models import PatientAttendance
@@ -378,14 +445,17 @@ def add_patient_attendance(request):
     employee_id = request.data.get('auth-user-id')
     registration_number = request.data.get('registration_number')
     date_str = request.data.get('date')
+    therapy_details = request.data.get('therapy_details')
+    discount = float(request.data.get('discount', 0))  # ✅ capture discount
 
+    # --- Validation ---
     if not registration_number or not date_str:
         return Response(
             {"error": "registration_number and date are required"},
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # Parse date
+    # --- Parse Date ---
     try:
         date_obj = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
     except ValueError:
@@ -394,14 +464,13 @@ def add_patient_attendance(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # First and last day of the month
+    # --- Month Check ---
     first_day = date_obj.replace(day=1)
     if date_obj.month == 12:
         last_day = date_obj.replace(year=date_obj.year + 1, month=1, day=1) - timedelta(seconds=1)
     else:
         last_day = date_obj.replace(month=date_obj.month + 1, day=1) - timedelta(seconds=1)
 
-    # Check for existing attendance in same month
     existing_attendance = PatientAttendance.objects.filter(
         registration_number=registration_number,
         date__gte=first_day,
@@ -415,17 +484,36 @@ def add_patient_attendance(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # Add audit fields before saving
-    serializer = PatientAttendanceSerializer(data=request.data)
+    # --- Calculate total charge ---
+    total_charge = sum(float(t.get("therapy_charge", 0)) for t in therapy_details if isinstance(t, dict))
+
+    # --- Store only name + type ---
+    simplified_details = [
+        {"therapy_name": t.get("therapy_name"), "therapy_type": t.get("therapy_type")}
+        for t in therapy_details if isinstance(t, dict)
+    ]
+
+    # --- Determine approval ---
+    is_approved = False if discount > 0 else True
+
+    # --- Prepare data ---
+    request_data = request.data.copy()
+    request_data["therapy_charge"] = total_charge
+    request_data["therapy_details"] = simplified_details
+    request_data["discount"] = discount
+    request_data["is_approved"] = is_approved
+
+
+    serializer = PatientAttendanceSerializer(data=request_data)
     if serializer.is_valid():
         instance = serializer.save(
             created_by=employee_id,
             lastmodified_by=employee_id,
             lastmodified_date=datetime.now()
         )
-        return Response(PatientAttendanceSerializer(instance).data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(PatientAttendanceSerializer(instance).data, status=201)
 
+    return Response(serializer.errors, status=400)
 
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -443,49 +531,320 @@ db = client[DB_NAME]
 attendance_col = db["milestone_backend_patientattendance"]
 registration_col = db["milestone_backend_registration"]
 
+# ✅ JSON-safe cleaner
+def clean_mongo_object(obj):
+    """Recursively convert MongoDB types (Decimal128, ObjectId, datetime) into JSON-safe values."""
+    if isinstance(obj, Decimal128):
+        return float(obj.to_decimal())
+    elif isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, ObjectId):
+        return str(obj)
+    elif isinstance(obj, datetime) or isinstance(obj, date):
+        return obj.isoformat()
+    elif isinstance(obj, list):
+        return [clean_mongo_object(i) for i in obj]
+    elif isinstance(obj, dict):
+        return {k: clean_mongo_object(v) for k, v in obj.items()}
+    else:
+        return obj
+
+
 @api_view(['GET'])
-@permission_classes([HasRolePermission])
+@permission_classes([])  # remove permission temporarily for testing
 def get_all_patient_attendance(request):
-    # MongoDB collections
-    mongo_uri = os.environ.get("GLOBAL_DB_HOST")
-    client = MongoClient(mongo_uri)
-    db = client["Milestone"]
-    attendance_col = db['milestone_backend_patientattendance']
-    registration_col = db['milestone_backend_registration']
+    """
+    ✅ Returns all patient attendance records (active + inactive)
+    ✅ Joins with registration data
+    ✅ Automatically converts Decimal128, datetime, ObjectId → JSON-safe types
+    """
+    try:
+        mongo_uri = os.environ.get("GLOBAL_DB_HOST")
+        client = MongoClient(mongo_uri)
+        db = client["Milestone"]
+        attendance_col = db['milestone_backend_patientattendance']
+        registration_col = db['milestone_backend_registration']
 
-    # Only active records
-    attendances = list(attendance_col.find({"is_active": True}).sort("date", -1))
+        # ✅ Fetch all attendances (active + inactive)
+        attendances = list(attendance_col.find({}).sort("date", -1))
+
+        # ✅ Fetch all registrations once for joining
+        registrations = {
+            r.get("registration_number"): clean_mongo_object(r)
+            for r in registration_col.find({})
+        }
+
+        combined_data = []
+        for a in attendances:
+            reg_data = registrations.get(a.get("registration_number"), {})
+
+            # Clean Mongo types in attendance too
+            a_clean = clean_mongo_object(a)
+
+            # Merge both dicts
+            combined_data.append({
+                **reg_data,
+                **a_clean
+            })
+
+        # ✅ Clean entire combined list (ensures all nested Decimal128 removed)
+        safe_data = clean_mongo_object(combined_data)
+
+        return Response({
+            "status": "success",
+            "count": len(safe_data),
+            "data": safe_data
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    # Fetch all registrations once
-    registrations = {r["registration_number"]: r for r in registration_col.find()}
+@api_view(['GET'])
+def get_therapy_details(request):
+    try:
+        # --- MongoDB Connection ---
+        client = MongoClient(mongo_uri)
+        db = client[db_name]  # ✅ Correct: use db_name string to get DB object
+        therapy_col = db["milestone_backend_therapydetails"]
 
-    # Combine attendance with registration info
-    combined_data = []
-    for a in attendances:
-        reg_data = registrations.get(a["registration_number"], {})
+        # --- Fetch all documents ---
+        therapies = list(therapy_col.find({}, {"_id": 0}))  # exclude _id for cleaner output
 
-        # Handle dob correctly
-        dob_value = reg_data.get("dob", None)
-        if isinstance(dob_value, dict):
-            dob = dob_value.get("$date", None)
-        elif hasattr(dob_value, "isoformat"):  # datetime object
-            dob = dob_value.isoformat()
-        else:
-            dob = None
+        # --- Sort by created_date (optional) ---
+        therapies.sort(key=lambda x: x.get("created_date", datetime.min), reverse=True)
 
-        combined_data.append({
-            "_id": str(a["_id"]),
-            "registration_number": a["registration_number"],
-            "date": a.get("date", None),
-            "session": a.get("session", ""),
-            "therapy_charge": a.get("therapy_charge", 0),
-            "name_of_child": reg_data.get("name_of_child", ""),
-            "dob": dob,
-            "sex": reg_data.get("sex", ""),
+        return Response({
+            "status": "success",
+            "count": len(therapies),
+            "data": therapies
         })
 
-    return Response(combined_data, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
 
+    
+db = client["Milestone"]
+
+def safe_float(value):
+    """Convert MongoDB Decimal128, dict, Decimal, or other types safely to float."""
+    if value is None:
+        return 0.0
+
+    if isinstance(value, Decimal128):
+        return float(value.to_decimal())
+
+    if isinstance(value, Decimal):
+        return float(value)
+
+    if isinstance(value, dict) and "$numberDecimal" in value:
+        try:
+            return float(value["$numberDecimal"])
+        except Exception:
+            return 0.0
+
+    try:
+        return float(value)
+    except Exception:
+        return 0.0
+
+@api_view(['GET'])
+@permission_classes([HasRolePermission])
+def get_pending_attendance_requests(request):
+    """
+    ✅ Fetch all pending attendance entries (is_approved=False)
+    - Includes joined patient registration details
+    - Handles discount, therapy_details, and safe number conversions
+    """
+    try:
+        registration_col = db["milestone_backend_registration"]
+        attendance_col = db["milestone_backend_patientattendance"]
+
+        # --- Fetch all active + not approved attendances ---
+        pending_attendances = list(attendance_col.find({
+            "is_active": True,
+            "is_approved": False
+        }))
+
+        # --- Fetch all registrations for comparison ---
+        registrations = list(registration_col.find({}, {"_id": 0}))
+        registration_map = {
+            reg.get("registration_number"): reg for reg in registrations
+        }
+
+        response_data = []
+
+        for att in pending_attendances:
+            reg_no = att.get("registration_number")
+            if not reg_no:
+                continue
+
+            patient_info = registration_map.get(reg_no, {})
+
+            # Parse and clean therapy details
+            therapy_details = att.get("therapy_details", [])
+            if isinstance(therapy_details, str):
+                try:
+                    therapy_details = json.loads(therapy_details)
+                except Exception:
+                    therapy_details = []
+
+            # Safely handle numbers
+            therapy_charge = safe_float(att.get("therapy_charge"))
+            discount = safe_float(att.get("discount")) if "discount" in att else 0.0
+
+            attendance_info = {
+                "_id": str(att.get("_id", "")),
+                "registration_number": reg_no,
+                "date": (
+                    att.get("date").strftime("%Y-%m-%d")
+                    if isinstance(att.get("date"), datetime)
+                    else str(att.get("date"))
+                ),
+                "session": att.get("session"),
+                "therapy_charge": therapy_charge,
+                "discount": discount,
+                "is_approved": att.get("is_approved", False),
+                "therapy_details": therapy_details,
+            }
+
+            response_data.append({
+                **patient_info,           # include patient data
+                "attendance": attendance_info  # nest attendance info
+            })
+
+        return Response({
+            "status": "success",
+            "count": len(response_data),
+            "data": response_data
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+from datetime import datetime, date
+
+db = client["Milestone"]
+
+def clean_mongo_object(obj):
+    """Recursively convert MongoDB types (Decimal128, ObjectId, datetime) into JSON-safe values."""
+    if isinstance(obj, Decimal128):
+        return float(obj.to_decimal())
+    elif isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, ObjectId):
+        return str(obj)
+    elif isinstance(obj, datetime) or isinstance(obj, date):
+        return obj.isoformat()
+    elif isinstance(obj, list):
+        return [clean_mongo_object(i) for i in obj]
+    elif isinstance(obj, dict):
+        return {k: clean_mongo_object(v) for k, v in obj.items()}
+    else:
+        return obj
+
+
+@api_view(["PATCH"])
+@permission_classes([HasRolePermission])
+def update_attendance_by_reg_and_date(request):
+    """
+    ✅ PATCH attendance using registration_number + date
+    Allows only discount, is_approved, or is_active updates
+    """
+    try:
+        attendance_col = db["milestone_backend_patientattendance"]
+
+        registration_number = request.data.get("registration_number")
+        date_str = request.data.get("date")
+
+        if not registration_number or not date_str:
+            return Response({
+                "status": "error",
+                "message": "registration_number and date are required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            date_obj = datetime.fromisoformat(date_str)
+        except ValueError:
+            return Response({
+                "status": "error",
+                "message": "Invalid date format. Use YYYY-MM-DD."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        attendance = attendance_col.find_one({
+            "registration_number": registration_number,
+            "date": {"$gte": date_obj.replace(hour=0, minute=0, second=0),
+                     "$lte": date_obj.replace(hour=23, minute=59, second=59)},
+            "is_active": True
+        })
+
+        if not attendance:
+            return Response({
+                "status": "error",
+                "message": "No active attendance record found for the given registration number and date."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        allowed_fields = ["discount", "is_approved", "is_active"]
+        update_fields = {}
+
+        for field in allowed_fields:
+            if field in request.data:
+                if field == "discount":
+                    try:
+                        update_fields["discount"] = Decimal128(str(request.data["discount"]))
+                    except Exception:
+                        return Response({
+                            "status": "error",
+                            "message": "Invalid discount value. Must be a number."
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    update_fields[field] = bool(request.data[field])
+
+        if not update_fields:
+            return Response({
+                "status": "error",
+                "message": "Only discount, is_approved, or is_active can be updated."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        update_fields["lastmodified_by"] = request.data.get("auth-user-id", "system")
+        update_fields["lastmodified_date"] = datetime.now()
+
+        result = attendance_col.update_one(
+            {"_id": attendance["_id"]},
+            {"$set": update_fields}
+        )
+
+        if result.modified_count == 0:
+            return Response({
+                "status": "warning",
+                "message": "No changes made (values may already be the same)."
+            }, status=status.HTTP_200_OK)
+
+        updated = attendance_col.find_one({"_id": attendance["_id"]})
+        if updated:
+            updated = clean_mongo_object(updated)
+
+        return Response({
+            "status": "success",
+            "message": "Attendance updated successfully.",
+            "updated_data": updated
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    
 @api_view(['PATCH'])
 @permission_classes([HasRolePermission])
 def edit_patient_attendance(request):

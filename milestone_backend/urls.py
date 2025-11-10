@@ -50,6 +50,10 @@ urlpatterns = [
     path('get-cbcl/<str:childName>/', cbcl.get_cbcl_data, name='get_cbcl_by_patient'),
     path('pending-payments/', therapybilling.pending_payment_report, name='pending-payments'),
     path('get_all_patient_attendance/', patientdetails.get_all_patient_attendance, name='get_all_patient_attendance'),
+    path('therapy-details/', patientdetails.get_therapy_details, name='therapy-details'),
     path('edit_patient_attendance/', patientdetails.edit_patient_attendance, name='edit_patient_attendance'),
     path('delete_patient_attendance/', patientdetails.delete_patient_attendance, name='delete_patient_attendance'),
+    path("get_pending_attendance_requests/", patientdetails.get_pending_attendance_requests, name="update_attendance_by_reg_and_date"),
+
+    path("attendance-update/", patientdetails.update_attendance_by_reg_and_date, name="update_attendance_by_reg_and_date"),
 ]

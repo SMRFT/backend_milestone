@@ -1,28 +1,24 @@
 from ..serializers import RegistrationSerializer
 from ..models import Registration, PatientAssessment
 from rest_framework.response import Response
-from datetime import datetime
+from datetime import datetime ,timedelta ,date
 from rest_framework.decorators import api_view , permission_classes
-from rest_framework.response import Response
 from rest_framework import status
 from ..models import PatientAssessment
 from ..serializers import PatientAssessmentSerializer
 from django.db.models import Max
 from django.http import JsonResponse
-from pymongo import MongoClient
-from django.http import JsonResponse
 from ..models import Registration
 from pyauth.auth import HasRolePermission
-from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from pymongo import DESCENDING, MongoClient
 import gridfs
-
 import os
 import certifi
+from bson import ObjectId
 from dotenv import load_dotenv
 
 load_dotenv()  # Load from .env if present
@@ -132,9 +128,6 @@ def update_registration(request, registration_number):
         if 'client' in locals():
             client.close()
 
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.response import Response
-from datetime import datetime
 from ..models import Registration, PatientAssessment, PatientAttendance
 from ..serializers import RegistrationSerializer
 import json
@@ -167,7 +160,6 @@ def get_all_patients(request):
 from bson import Decimal128
 from decimal import Decimal
 import json
-from datetime import datetime
 
 client = MongoClient(mongo_uri)
 db = client["Milestone"]
@@ -416,12 +408,7 @@ def get_referrals(request):
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 
-from rest_framework import status
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
 from django.utils.timezone import make_aware
-from datetime import datetime
-from ..models import Registration, PatientAttendance
 from ..serializers import RegistrationSerializer, PatientAttendanceSerializer
 
 @api_view(['GET'])
@@ -432,10 +419,6 @@ def get_all_patient_details(request):
     serializer = RegistrationSerializer(patients, many=True)
     return Response(serializer.data)
 
-from datetime import datetime, timedelta
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.response import Response
-from rest_framework import status
 from milestone_backend.models import PatientAttendance
 from milestone_backend.serializers import PatientAttendanceSerializer
 
@@ -494,7 +477,7 @@ def add_patient_attendance(request):
     ]
 
     # --- Determine approval ---
-    is_approved = False if discount > 0 else True
+    is_approved = False 
 
     # --- Prepare data ---
     request_data = request.data.copy()
@@ -514,13 +497,6 @@ def add_patient_attendance(request):
         return Response(PatientAttendanceSerializer(instance).data, status=201)
 
     return Response(serializer.errors, status=400)
-
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework import status
-from pymongo import MongoClient
-from bson import ObjectId
-import os
 
 MONGO_URI = os.environ.get("GLOBAL_DB_HOST")
 DB_NAME = os.environ.get("MILESTONE_DB_NAME", "Milestone")
@@ -729,8 +705,6 @@ def get_pending_attendance_requests(request):
             "status": "error",
             "message": str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-from datetime import datetime, date
 
 db = client["Milestone"]
 

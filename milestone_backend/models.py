@@ -307,7 +307,7 @@ class PatientAttendance(AuditModel):
     therapy_details = models.JSONField(default=list, blank=True)
     # --- New Fields ---
     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    is_approved = models.BooleanField(default=True)
+    is_approved = models.BooleanField(default=False)
 
     # --- Soft delete / active flag ---
     is_active = models.BooleanField(default=True)

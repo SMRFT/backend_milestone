@@ -32,7 +32,7 @@ ALLOWED_HOSTS = [
     '127.0.0.1',
     'node223383-shinova.in1.cloudlets.co.in',
     'shinova.in1.cloudlets.co.in',
-    "shinova.in"
+    'shinova.in'
 ]
 
 # Application definition

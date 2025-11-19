@@ -239,3 +239,14 @@ class PatientAttendanceSerializer(serializers.ModelSerializer):
 
 
 
+from rest_framework import serializers
+from .models import HistoryRecordingSheet
+
+class HistoryRecordingSheetSerializer(serializers.ModelSerializer):
+    id = ObjectIdField(read_only=True)
+    class Meta:
+        model = HistoryRecordingSheet
+        fields =  '__all__' 
+
+
+

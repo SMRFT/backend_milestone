@@ -318,3 +318,23 @@ class PatientAttendance(AuditModel):
     class Meta:
         verbose_name = "PatientAttendance"
         verbose_name_plural = "PatientAttendances"
+
+
+
+
+class HistoryRecordingSheet(AuditModel):
+    identification_data = models.JSONField()
+    demographic_data = models.JSONField()
+    presenting_complaints = models.CharField(max_length=5000)
+    history_of_present_illness= models.JSONField()
+    family_history=models.JSONField()
+    personal_history=models.JSONField()
+    natalandneanatal_history=models.JSONField()
+    postnatal_history=models.JSONField()
+    developmental_history=models.JSONField()
+    scholastic_history=models.JSONField()
+    play_history=models.JSONField()
+    treatment_history= models.CharField(max_length=5000)
+    general_history=models.JSONField()
+    
+    

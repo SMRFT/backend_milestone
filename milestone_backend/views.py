@@ -14,7 +14,7 @@ from .models import PediatricAssessment
 from .models import Registration
 from .models import PediatricAssessment
 from .models import PatientAssessment
-from .serializers import RegistrationSerializer,PatientAssessmentSerializer,PediatricAssessmentSerializer
+from .serializers import RegistrationSerializer,PatientAssessmentSerializer,PediatricAssessmentSerializer,HistoryRecordingSheetSerializer
 from .serializers import PatientAssessmentSerializer
 from pyauth.auth import HasRolePermission
 
@@ -192,3 +192,6 @@ def get_patient_assessments(request):
 
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
+    
+
+

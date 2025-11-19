@@ -56,4 +56,5 @@ urlpatterns = [
     path("get_pending_attendance_requests/", patientdetails.get_pending_attendance_requests, name="update_attendance_by_reg_and_date"),
 
     path("attendance-update/", patientdetails.update_attendance_by_reg_and_date, name="update_attendance_by_reg_and_date"),
+    path("HistoryRecordingSheet/", patientdetails.HistoryRecordingSheet, name="HistoryRecordingSheet"),
 ]

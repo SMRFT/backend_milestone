@@ -219,15 +219,14 @@ def get_all_attendance_patients(request):
             try:
                 year, mon = map(int, month.split("-"))
                 start_date = datetime(year, mon, 1)
-                # Last day of the month: next month minus 1 day
-                end_date = (start_date + relativedelta(months=1)) - relativedelta(days=1)
+                end_date = start_date + relativedelta(months=1)
 
                 date_filter = {
                     "date": {
                         "$gte": start_date,
-                        "$lte": end_date
+                        "$lt": end_date
                     }
-                }
+                }         
             except:
                 return Response(
                     {"status": "error", "message": "Invalid month format. Use YYYY-MM."},

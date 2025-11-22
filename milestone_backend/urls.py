@@ -1,7 +1,7 @@
 from django.urls import path, re_path
 from . import views 
 from .views import pediatric_assessment_list,get_patients_report
-from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others
+from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others,pediatricassessment
 
 
 urlpatterns = [
@@ -14,6 +14,7 @@ urlpatterns = [
     path('save-assessments/', patientdetails.save_assessments, name='save-assessments'), 
     path('others_billing/', Others.others_billing, name='others_billing'),  
     path('all-patient/', patientdetails.get_all_patients, name='all-patients'),
+    path('all-patient-filterless/', patientdetails.get_all_patients_filterless, name='get_all_patients_filterless'),
     path('all-attendance-patient/', patientdetails.get_all_attendance_patients, name='all-patients'),
     path('pendingPayment/', invoice.pendingPayment, name='pendingPayment'),
     path('updatePayment/', invoice.update_payment, name='update_payment'),
@@ -56,4 +57,7 @@ urlpatterns = [
     path("get_pending_attendance_requests/", patientdetails.get_pending_attendance_requests, name="update_attendance_by_reg_and_date"),
 
     path("attendance-update/", patientdetails.update_attendance_by_reg_and_date, name="update_attendance_by_reg_and_date"),
+    path("HistoryRecordingSheet/", pediatricassessment.CreateHistoryRecordingSheet, name="HistoryRecordingSheet"),
+    path("GetHistoryRecordingSheet/", pediatricassessment.GetHistoryRecordingSheet, name="GetHistoryRecordingSheet"),
+
 ]

@@ -24,7 +24,7 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/pending-payments/':'MDC-P-PNPR',
     '/_b_a_c_k_e_n_d/Milestone/get_all_patient_details/':'MDC-API-AT',
     '/_b_a_c_k_e_n_d/Milestone/attendance/':'MDC-API-AT',
-    '/_b_a_c_k_e_n_d/Milestone/all-attendance-patient/':'MDC-API-AT',
+    r'^/_b_a_c_k_e_n_d/Milestone/all-attendance-patient/?(\?.*)?$': 'MDC-API-AT',
     '/_b_a_c_k_e_n_d/Milestone/add_patient_attendance/':'MDC-API-AT',
     '/_b_a_c_k_e_n_d/Milestone/get_all_patient_attendance/':'MDC-API-AT',
     '/_b_a_c_k_e_n_d/Milestone/edit_patient_attendance/':'MDC-API-AT',
@@ -32,6 +32,9 @@ PAGE_MAPPING = {
     "/_b_a_c_k_e_n_d/Milestone/get_all_patient_details/":'MDC-API-AT',
     "/_b_a_c_k_e_n_d/Milestone/get_pending_attendance_requests/":'MDC-API-ADM',
     "/_b_a_c_k_e_n_d/Milestone/attendance-update/":'MDC-API-ADM',
+    "/_b_a_c_k_e_n_d/Milestone/all-patient-filterless/":'MDC-API-PDC',
+    "/_b_a_c_k_e_n_d/Milestone/HistoryRecordingSheet/":'MDC-API-PDC',
+    "/_b_a_c_k_e_n_d/Milestone/GetHistoryRecordingSheet/":'MDC-API-PDC',
 
     '/_b_a_c_k_e_n_d/Milestone/all-assessments/':'',
     '/_b_a_c_k_e_n_d/Milestone/login/':'',

@@ -5,7 +5,7 @@ from datetime import datetime ,timedelta ,date
 from rest_framework.decorators import api_view , permission_classes
 from rest_framework import status
 from ..models import PatientAssessment
-from ..serializers import PatientAssessmentSerializer
+from ..serializers import PatientAssessmentSerializer,HistoryRecordingSheetSerializer
 from django.db.models import Max
 from django.http import JsonResponse
 from ..models import Registration
@@ -13,6 +13,7 @@ from pyauth.auth import HasRolePermission
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
+from dateutil.relativedelta import relativedelta
 from django.shortcuts import get_object_or_404
 from pymongo import DESCENDING, MongoClient
 import gridfs
@@ -157,6 +158,18 @@ def get_all_patients(request):
     # Return the patient data in the response
     return Response(patient_data)
 
+@api_view(['GET'])
+# @permission_classes([HasRolePermission])
+def get_all_patients_filterless(request):
+    # Get all patients from the Registration model
+    patients = Registration.objects.all()
+
+    # Serialize all patients
+    patient_data = RegistrationSerializer(patients, many=True).data
+
+    # Return the patient data in the response
+    return Response(patient_data)
+
 from bson import Decimal128
 from decimal import Decimal
 import json
@@ -190,20 +203,45 @@ def safe_float(value):
 @permission_classes([HasRolePermission])
 def get_all_attendance_patients(request):
     """
-    ✅ Get all patients with attendance records
-    - Includes therapy details, discounts, approval status
-    - Ignores missing fields gracefully
-    - Only includes active attendances
+    Get all patients with attendance records.
+    Supports optional filter:
+    ?month=YYYY-MM
     """
     try:
         registration_col = db["milestone_backend_registration"]
         attendance_col = db["milestone_backend_patientattendance"]
 
-        # --- Fetch all registrations ---
-        registrations = list(registration_col.find({}, {"_id": 0}))
+        # --------- MONTH FILTER (NEW) ----------
+        month = request.GET.get("month")  # Example: 2025-01
+        date_filter = {}
 
-        # --- Fetch attendances (filter only is_active=True) ---
-        attendances = list(attendance_col.find({"is_active": True}))
+        if month:
+            try:
+                year, mon = map(int, month.split("-"))
+                start_date = datetime(year, mon, 1)
+                # Last day of the month: next month minus 1 day
+                end_date = (start_date + relativedelta(months=1)) - relativedelta(days=1)
+
+                date_filter = {
+                    "date": {
+                        "$gte": start_date,
+                        "$lte": end_date
+                    }
+                }
+            except:
+                return Response(
+                    {"status": "error", "message": "Invalid month format. Use YYYY-MM."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        # ---------------------------------------
+
+        # Fetch active attendances with month filter if exists
+        attendance_query = {"is_active": True}
+
+        if date_filter:
+            attendance_query["date"] = date_filter["date"]
+
+        attendances = list(attendance_col.find(attendance_query))
 
         attendance_map = {}
 
@@ -212,11 +250,11 @@ def get_all_attendance_patients(request):
             if not reg_no:
                 continue
 
-            # Skip unapproved records only if field exists and is False
+            # Skip unapproved only if field exists and is False
             if "is_approved" in att and not att.get("is_approved", False):
                 continue
 
-            # Parse therapy_details (string → list)
+            # Parse therapy_details
             therapy_details = att.get("therapy_details", [])
             if isinstance(therapy_details, str):
                 try:
@@ -226,11 +264,7 @@ def get_all_attendance_patients(request):
 
             attendance_info = {
                 "_id": str(att.get("_id", "")),
-                "date": (
-                    att.get("date").strftime("%Y-%m-%d")
-                    if isinstance(att.get("date"), datetime)
-                    else str(att.get("date"))
-                ),
+                "date": att.get("date").strftime("%Y-%m-%d") if isinstance(att.get("date"), datetime) else str(att.get("date")),
                 "session": att.get("session"),
                 "therapy_charge": safe_float(att.get("therapy_charge")),
                 "discount": safe_float(att.get("discount")) if "discount" in att else 0.0,
@@ -243,10 +277,17 @@ def get_all_attendance_patients(request):
             attendance_map[reg_no].append(attendance_info)
 
         # Merge patient info + attendance
+        registrations = list(registration_col.find({}, {"_id": 0}))
+
         response_data = []
         for patient in registrations:
             reg_no = patient.get("registration_number")
             patient_attendances = attendance_map.get(reg_no, [])
+
+            if month:
+                # Only include patients with attendance in that month
+                if not patient_attendances:
+                    continue
 
             if patient_attendances:
                 total_charge = sum(a["therapy_charge"] for a in patient_attendances)
@@ -265,11 +306,11 @@ def get_all_attendance_patients(request):
         return Response(response_data, status=status.HTTP_200_OK)
 
     except Exception as e:
-        return Response({
-            "status": "error",
-            "message": str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-   
+        return Response(
+            {"status": "error", "message": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
 @api_view(['GET'])
 @permission_classes([HasRolePermission])    
 def get_all_assessments(request):

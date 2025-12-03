@@ -267,6 +267,7 @@ def get_all_attendance_patients(request):
                 "session": att.get("session"),
                 "therapy_charge": safe_float(att.get("therapy_charge")),
                 "discount": safe_float(att.get("discount")) if "discount" in att else 0.0,
+                "discount_remarks":att.get("discount_remarks") if "discount" in att else "",
                 "is_approved": att.get("is_approved", True),
                 "therapy_details": therapy_details,
             }
@@ -470,7 +471,7 @@ def add_patient_attendance(request):
     date_str = request.data.get('date')
     therapy_details = request.data.get('therapy_details')
     discount = float(request.data.get('discount', 0))  # ✅ capture discount
-
+    discount_remarks = request.data.get('discount_remarks', '')
     # --- Validation ---
     if not registration_number or not date_str:
         return Response(
@@ -525,7 +526,7 @@ def add_patient_attendance(request):
     request_data["therapy_details"] = simplified_details
     request_data["discount"] = discount
     request_data["is_approved"] = is_approved
-
+    request_data["discount_remarks"] = discount_remarks
 
     serializer = PatientAttendanceSerializer(data=request_data)
     if serializer.is_valid():

@@ -1,7 +1,7 @@
 from django.urls import path, re_path
 from . import views 
 from .views import pediatric_assessment_list,get_patients_report
-from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others,pediatricassessment
+from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others,pediatricassessment, attendance
 
 
 urlpatterns = [
@@ -15,7 +15,7 @@ urlpatterns = [
     path('others_billing/', Others.others_billing, name='others_billing'),  
     path('all-patient/', patientdetails.get_all_patients, name='all-patients'),
     path('all-patient-filterless/', patientdetails.get_all_patients_filterless, name='get_all_patients_filterless'),
-    path('all-attendance-patient/', patientdetails.get_all_attendance_patients, name='all-patients'),
+    path('all-attendance-patient/', attendance.get_all_attendance_patients, name='all-patients'),
     path('pendingPayment/', invoice.pendingPayment, name='pendingPayment'),
     path('updatePayment/', invoice.update_payment, name='update_payment'),
     path('next-registration-number/', patientdetails.get_latest_registration_number, name='next_registration_number'),
@@ -28,7 +28,7 @@ urlpatterns = [
     path('update-doctor/<str:referral_id>/', referals.update_doctor, name='update_doctor'),     
     path('update-employeeDr/<str:employee_id>/', consultingdoctors.update_consulting_doctor, name='update_consulting_doctor'), 
     path('get_all_patient_details/', patientdetails.get_all_patient_details, name='get_all_patient_details'),
-    path('attendance/', patientdetails.add_patient_attendance, name='add_attendance'),     
+    path('attendance/', attendance.add_patient_attendance, name='add_attendance'),     
     
     path('all-assessments/', patientdetails.get_all_assessments, name='all-assessments'),     
     path('developmental-tasks/', developmentalscreeningtask.DevelopmentalTask, name='DevelopmentalTask'),
@@ -50,14 +50,20 @@ urlpatterns = [
     path('get-cbcl/', cbcl.get_cbcl_data, name='get_all_cbcl'),
     path('get-cbcl/<str:childName>/', cbcl.get_cbcl_data, name='get_cbcl_by_patient'),
     path('pending-payments/', therapybilling.pending_payment_report, name='pending-payments'),
-    path('get_all_patient_attendance/', patientdetails.get_all_patient_attendance, name='get_all_patient_attendance'),
-    path('therapy-details/', patientdetails.get_therapy_details, name='therapy-details'),
-    path('edit_patient_attendance/', patientdetails.edit_patient_attendance, name='edit_patient_attendance'),
-    path('delete_patient_attendance/', patientdetails.delete_patient_attendance, name='delete_patient_attendance'),
-    path("get_pending_attendance_requests/", patientdetails.get_pending_attendance_requests, name="update_attendance_by_reg_and_date"),
+    path('get_all_patient_attendance/', attendance.get_all_patient_attendance, name='get_all_patient_attendance'),
+    path('therapy-details/', attendance.get_therapy_details, name='therapy-details'),
+    # path('edit_patient_attendance/', patientdetails.edit_patient_attendance, name='edit_patient_attendance'),
+    # path('delete_patient_attendance/', patientdetails.delete_patient_attendance, name='delete_patient_attendance'),
+    path("get_pending_attendance_requests/", attendance.get_pending_attendance_requests, name="update_attendance_by_reg_and_date"),
 
-    path("attendance-update/", patientdetails.update_attendance_by_reg_and_date, name="update_attendance_by_reg_and_date"),
+    path("attendance-update/", attendance.update_attendance_by_reg_and_date, name="update_attendance_by_reg_and_date"),
     path("HistoryRecordingSheet/", pediatricassessment.CreateHistoryRecordingSheet, name="HistoryRecordingSheet"),
     path("GetHistoryRecordingSheet/", pediatricassessment.GetHistoryRecordingSheet, name="GetHistoryRecordingSheet"),
+    path("update_attendance_sessions/", attendance.update_attendance_sessions, name="update_attendance_sessions"),
+
+    path('get_all_patient_oldattendance/', attendance.get_all_patient_oldattendance, name='get_all_patient_oldattendance'),
+    
+    path('oldtherapy-reports/', therapybilling.get_oldtherapy_reports, name='oldtherapy-reports'),
+
 
 ]

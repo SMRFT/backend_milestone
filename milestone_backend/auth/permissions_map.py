@@ -26,7 +26,7 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/attendance/':'MDC-API-AT',
     r'^/_b_a_c_k_e_n_d/Milestone/all-attendance-patient/?(\?.*)?$': 'MDC-API-AT',
     '/_b_a_c_k_e_n_d/Milestone/add_patient_attendance/':'MDC-API-AT',
-    '/_b_a_c_k_e_n_d/Milestone/get_all_patient_attendance/':'MDC-API-AT',
+    r'^/_b_a_c_k_e_n_d/Milestone/get_all_patient_attendance/?(\?.*)?$': 'MDC-API-AT',
     '/_b_a_c_k_e_n_d/Milestone/edit_patient_attendance/':'MDC-API-AT',
     '/_b_a_c_k_e_n_d/Milestone/delete_patient_attendance/':'MDC-API-AT',
     "/_b_a_c_k_e_n_d/Milestone/get_all_patient_details/":'MDC-API-AT',
@@ -35,6 +35,8 @@ PAGE_MAPPING = {
     "/_b_a_c_k_e_n_d/Milestone/all-patient-filterless/":'MDC-API-PDC',
     "/_b_a_c_k_e_n_d/Milestone/HistoryRecordingSheet/":'MDC-API-PDC',
     "/_b_a_c_k_e_n_d/Milestone/GetHistoryRecordingSheet/":'MDC-API-PDC',
+    "/_b_a_c_k_e_n_d/Milestone/update_attendance_sessions/":'MDC-API-AT',
+    r'^/_b_a_c_k_e_n_d/Milestone/get_all_patient_oldattendance/?(\?.*)?$': 'MDC-API-AT',
 
     '/_b_a_c_k_e_n_d/Milestone/all-assessments/':'',
     '/_b_a_c_k_e_n_d/Milestone/login/':'',
@@ -56,6 +58,7 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/CBCLgirlsassessment/':'',
     '/_b_a_c_k_e_n_d/Milestone/get-cbcl/':'',
     '/_b_a_c_k_e_n_d/Milestone/get-cbcl/<str:childName>/':'',
+    '/_b_a_c_k_e_n_d/Milestone/oldtherapy-reports/?(\?.*)?$':'MDC-API-THR',
 
     '/therapy-reports/':'MDC-API-THR',
     '/get_patient_assessments/':'MDC-API-GAS',

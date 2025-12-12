@@ -136,29 +136,28 @@ class SkillTestResult(AuditModel):
     
 
 class TherapyBilling(AuditModel):
-    billing_no = models.CharField(max_length=20, unique=True, blank=True, null=True)
-    registration_number = models.CharField(max_length=20,blank=True)
-    name = models.CharField(max_length=100)  
-    nameoftherapy = models.JSONField()
-    therapy_charge = models.FloatField(blank=True, default=0.0)
-    number_of_sessions = models.CharField(max_length=10,blank=True)
-    discount = models.FloatField(blank=True, default=0.0)
-    discount_remarks = models.CharField(max_length=1200, blank=True)
-    adjusted_charge = models.FloatField(blank=True, default=0.0)
-    amount_paid = models.FloatField(blank=True, default=0.0)
-    remaining_amount = models.JSONField(blank=True, default=dict)
+    registration_number = models.CharField(max_length=20)
+    billing_no = models.CharField(max_length=50, unique=True)
+
+    # Linking to attendance
+    attendance_date = models.DateField()
+    bill_date = models.DateField(auto_now_add=True)
+
+    # Charges
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Payment
     payment_type = models.CharField(max_length=100, blank=True)
     payment_method = models.CharField(max_length=100, blank=True)
-    consultant_doctor = models.JSONField()  
-    dob = models.DateField(null=True, blank=True)  # Added dob field
-    age = models.JSONField()
-    sex = models.CharField(max_length=10)
-    father_phone_number = models.CharField(max_length=15, blank=True)   
-    mother_phone_number = models.CharField(max_length=15, blank=True) 
-    date = models.DateTimeField(auto_now_add=True)   
-    attendance_date = models.DateField(blank=True) 
+
     def __str__(self):
-        return f"Billing No: {self.billing_no} - {self.name}"
+        return f"Billing No: {self.billing_no} - {self.registration_number}"
+
+    class Meta:
+        verbose_name = "Therapy Billing"
+        verbose_name_plural = "Therapy Billings"
     
 
 class OthersBilling(AuditModel):
@@ -297,29 +296,44 @@ from datetime import date
 
 class PatientAttendance(AuditModel):
     registration_number = models.CharField(max_length=50)
-    date = models.DateField(default=date.today)
-    session = models.CharField(max_length=50)
-
-    # --- Store total charge (calculated sum of selected therapies) ---
+    attendance_date = models.DateField()  # Attendance Date
+    session = models.IntegerField()
+    # Therapy Details
+    therapy_details = models.JSONField(default=list, blank=True)
     therapy_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
-    # --- Store all selected therapy details (list of JSON objects) ---
-    therapy_details = models.JSONField(default=list, blank=True)
-    # --- New Fields ---
-    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    # Discount
+    discount = models.DecimalField(max_digits=10, decimal_places=2)
+    discount_remarks = models.CharField(max_length=500, blank=True)
+
+    # Not Attending
+    not_attending = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    not_attending_details = models.JSONField(default=list, blank=True)
+    not_attending_remarks = models.CharField(max_length=500, blank=True)
+
+    # Extra Attending
+    extra_attending = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    extra_attending_details = models.JSONField(default=list, blank=True)
+    extra_attending_remarks = models.CharField(max_length=500, blank=True)
+
+    # Final Billing Info
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    bill_details = models.JSONField(default=list, blank=True)
+
+    # Consultant
+    consultant_doctor = models.JSONField(default=list, blank=True)
+
+    # System Controls
+    is_active = models.BooleanField(default=True)
     is_approved = models.BooleanField(default=False)
 
-    # --- Soft delete / active flag ---
-    is_active = models.BooleanField(default=True)
-
     def __str__(self):
-        return f"{self.registration_number} - {self.date}"
+        return f"{self.registration_number} - {self.attendance_date}"
 
     class Meta:
-        verbose_name = "PatientAttendance"
-        verbose_name_plural = "PatientAttendances"
-
-
+        verbose_name = "Patient Attendance"
+        verbose_name_plural = "Patient Attendances"
 
 
 class HistoryRecordingSheet(AuditModel):

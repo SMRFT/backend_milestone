@@ -67,12 +67,28 @@ def safe_float(value):
     except Exception:
         return 0.0
 
+def parse_bill_details(bill_details):
+    if not bill_details:
+        return []
+
+    if isinstance(bill_details, list):
+        return bill_details
+
+    if isinstance(bill_details, str):
+        try:
+            return json.loads(bill_details)
+        except:
+            return []
+
+    return []
+
 @api_view(['GET'])
 @permission_classes([HasRolePermission])
 def get_all_attendance_patients(request):
     try:
         registration_col = db["milestone_backend_registration"]
         attendance_col = db["milestone_backend_patientattendance"]
+        billing_col = db["milestone_backend_therapybilling"]
 
         # --------- MONTH FILTER ----------
         month = request.GET.get("month")
@@ -121,6 +137,33 @@ def get_all_attendance_patients(request):
                 except:
                     therapy_details = []
 
+            bill_nos = parse_bill_details(att.get("bill_details"))
+
+            # Fetch bills
+            bills = []
+            if bill_nos:
+                bills_cursor = billing_col.find(
+                    {"billing_no": {"$in": bill_nos}},
+                    {"_id": 0}
+                )
+
+                for bill in bills_cursor:
+                    bills.append({
+                        **bill,
+                        "total_amount": safe_float(bill.get("total_amount")),
+                        "total_amount_paid": safe_float(bill.get("total_amount_paid")),
+                        "amount_paid": safe_float(bill.get("amount_paid")),
+                        "bill_date": bill.get("bill_date").strftime("%Y-%m-%d")
+                            if isinstance(bill.get("bill_date"), datetime)
+                            else bill.get("bill_date"),
+                        "attendance_date": bill.get("attendance_date").strftime("%Y-%m-%d")
+                            if isinstance(bill.get("attendance_date"), datetime)
+                            else bill.get("attendance_date"),
+                        "created_date": bill.get("created_date").strftime("%Y-%m-%d %H:%M:%S")
+                            if isinstance(bill.get("created_date"), datetime)
+                            else bill.get("created_date"),
+                    })
+
             attendance_info = {
                 "_id": str(att.get("_id")),
 
@@ -144,7 +187,8 @@ def get_all_attendance_patients(request):
                 "total_amount": safe_float(att.get("total_amount")),
                 "total_amount_paid": safe_float(att.get("total_amount_paid")),
 
-                "bill_no": att.get("bill_no"),
+                "bill_details": bill_nos,   # 🔥 parsed list
+                "bills": bills,             # 🔥 full bill objects
                 "consultant_doctor": att.get("consultant_doctor"),
 
                 "is_active": att.get("is_active", True),

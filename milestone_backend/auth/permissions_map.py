@@ -16,7 +16,7 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/register/':'MDC-P-REG',
     '/_b_a_c_k_e_n_d/Milestone/referrals/?(\?.*)?$':'MDC-P-SOR',
     '/_b_a_c_k_e_n_d/Milestone/therapy_billing/':'MDC-P-TRB',
-    '/_b_a_c_k_e_n_d/Milestone/update-patient/?(\?.*)?$':'MDC-P-PTE',
+    '/_b_a_c_k_e_n_d/Milestone/update-patient/.*':'MDC-P-PTE',
     '/_b_a_c_k_e_n_d/Milestone/update-doctor(?:/[^/]+)+/$':'MDC-P-RDE',
     '/_b_a_c_k_e_n_d/Milestone/update-employeeDr(?:/[^/]+)+/$':'MDC-P-CDE',
     

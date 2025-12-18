@@ -236,7 +236,7 @@ def pending_payment_report(request):
     reg_map = {
         r.registration_number: {
             "name_of_child": r.name_of_child,
-            "dob": r.dob.isoformat() if r.dob else None,
+            "dob": r.dob if r.dob else None,
             "age": r.age,
             "sex": r.sex,
             "mother_name": r.mother_name,

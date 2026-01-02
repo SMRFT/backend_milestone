@@ -327,5 +327,38 @@ class HistoryRecordingSheetSerializer(serializers.ModelSerializer):
         model = HistoryRecordingSheet
         fields =  '__all__' 
 
+from .models import ClinicalPsychologyAssessment
+class ClinicalPsychologyAssessmentSerializer(serializers.ModelSerializer):
+    id = ObjectIdField(read_only=True)
+    class Meta:
+        model = ClinicalPsychologyAssessment
+        fields = "__all__"
 
+from .models import OccupationalTherapyAssessment
+class OccupationalTherapyAssessmentSerializer(serializers.ModelSerializer):
+    id = ObjectIdField(read_only=True)
+    class Meta:
+        model = OccupationalTherapyAssessment
+        fields = "__all__"
+
+from .models import SpeechTherapyAssessment
+class SpeechTherapyAssessmentSerializer(serializers.ModelSerializer):
+    id = ObjectIdField(read_only=True)
+    class Meta:
+        model = SpeechTherapyAssessment
+        fields = "__all__"
+
+from .models import PhysiotherapyAssessment
+class PhysiotherapyAssessmentSerializer(serializers.ModelSerializer):
+    id = ObjectIdField(read_only=True)
+    class Meta:
+        model = PhysiotherapyAssessment
+        fields = "__all__"
+        
+from .models import AssessmentAnalysis
+class AssessmentAnalysisSerializer(serializers.ModelSerializer):
+    id = ObjectIdField(read_only=True)
+    class Meta:
+        model = AssessmentAnalysis
+        fields = "__all__"
 

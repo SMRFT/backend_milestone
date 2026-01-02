@@ -32,7 +32,7 @@ db_name = os.environ.get("MILESTONE_DB_NAME", "Milestone")
 if env_type in ["test", "prod"]:
     client = MongoClient(mongo_uri)
 else:
-    client = MongoClient(mongo_uri, tls=True, tlsCAFile=certifi.where())
+    client = MongoClient(mongo_uri)
 
 @api_view(['POST'])
 @permission_classes([HasRolePermission])
@@ -50,3 +50,4 @@ def GetHistoryRecordingSheet(request):
     records = HistoryRecordingSheet.objects.all().order_by('-id')
     serializer = HistoryRecordingSheetSerializer(records, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
+

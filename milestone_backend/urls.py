@@ -1,7 +1,7 @@
 from django.urls import path, re_path
 from . import views 
 from .views import pediatric_assessment_list,get_patients_report
-from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others,pediatricassessment, attendance
+from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others,pediatricassessment, attendance, Assessment
 
 
 urlpatterns = [
@@ -65,5 +65,15 @@ urlpatterns = [
     
     path('oldtherapy-reports/', therapybilling.get_oldtherapy_reports, name='oldtherapy-reports'),
 
-
+    path("get_ot_patients/", Assessment.get_ot_patients),
+    path("get_speech_patients/", Assessment.get_speech_patients),
+    path("get_pt_patients/", Assessment.get_pt_patients),
+    path("get_psychological_patients/", Assessment.get_psychological_patients),
+    path("get_all_category_patients/", Assessment.get_all_category_patients),
+    path('clinical/', Assessment.clinical_psychology_assessment),
+    path('ot/', Assessment.occupational_therapy_assessment),
+    path('speech/', Assessment.speech_therapy_assessment),
+    path('physio/', Assessment.physiotherapy_assessment),
+    path("assessment-analysis/", Assessment.assessment_analysis_list_create),
+    path("assessment-analysis/<int:pk>/", Assessment.assessment_analysis_detail),
 ]

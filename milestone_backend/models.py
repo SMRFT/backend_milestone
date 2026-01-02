@@ -350,5 +350,127 @@ class HistoryRecordingSheet(AuditModel):
     play_history=models.JSONField()
     treatment_history= models.CharField(max_length=5000)
     general_history=models.JSONField()
+    OverAllImpression = models.CharField(max_length=5000)
     
+class PatientAttendance(AuditModel):
+    registration_number = models.CharField(max_length=50)
+    date = models.DateField(default=date.today)
+    session = models.CharField(max_length=50)
+    # --- Store total charge (calculated sum of selected therapies) ---
+    therapy_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    # --- Store all selected therapy details (list of JSON objects) ---
+    therapy_details = models.JSONField(default=list, blank=True)
+    # --- New Fields ---
+    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    is_approved = models.BooleanField(default=False)
+    # --- Soft delete / active flag ---
+    is_active = models.BooleanField(default=True)
+    def __str__(self):
+        return f"{self.registration_number} - {self.date}"
     
+    class Meta:
+        verbose_name = "PatientAttendance"
+        verbose_name_plural = "PatientAttendances"
+
+class ClinicalPsychologyAssessment(AuditModel):
+    assessment_date = models.DateField()
+    registrationNumber = models.CharField(max_length=500, blank=True)
+    patientName = models.CharField(max_length=500, blank=True)
+    # Store as JSON list
+    behaviour_problems = models.JSONField(default=list, blank=True)
+    # General Temperament as JSON
+    general_temperament = models.JSONField(default=dict, blank=True)
+    # Behavioral Observation as JSON
+    behavioral_observation = models.JSONField(default=dict, blank=True)
+    # Assessment Tests as JSON
+    assessments_used = models.JSONField(default=dict, blank=True)
+    impression = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-assessment_date']
+    def __str__(self):
+        return f"{self.patientName} - {self.assessment_date}"
+    
+class OccupationalTherapyAssessment(AuditModel):
+    assessment_date = models.DateField()
+    registrationNumber = models.CharField(max_length=500, blank=True)
+    patientName = models.CharField(max_length=500, blank=True)
+    motor_skills = models.JSONField(default=dict, blank=True)
+    handwriting_skills = models.JSONField(default=dict, blank=True)
+    cognitive_concepts = models.JSONField(default=dict, blank=True)
+    visual_perceptual_skills = models.JSONField(default=dict, blank=True)
+    sensory_evaluation = models.JSONField(default=dict, blank=True)
+    adl_evaluation = models.JSONField(default=dict, blank=True)
+    assessments_used = models.JSONField(default=dict, blank=True)
+    impression = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-assessment_date']
+    def __str__(self):
+        return f"{self.patientName} - {self.assessment_date}"
+    
+class SpeechTherapyAssessment(AuditModel):
+    assessment_date = models.DateField()
+    registrationNumber = models.CharField(max_length=500, blank=True)
+    patientName = models.CharField(max_length=500, blank=True)
+    oral_peripheral_mechanism = models.JSONField(default=dict, blank=True)
+    oral_impression = models.TextField(blank=True)
+    vegetative_skills = models.JSONField(default=dict, blank=True)
+    speech_parameters = models.JSONField(default=dict, blank=True)
+    communication_profile = models.JSONField(default=dict, blank=True)
+    linguistic_profile = models.JSONField(default=dict, blank=True)
+    assessments_used = models.JSONField(default=dict, blank=True)
+    impression = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-assessment_date']
+    def __str__(self):
+        return f"{self.patientName} - {self.assessment_date}"
+    
+class PhysiotherapyAssessment(AuditModel):
+    assessment_date = models.DateField()
+    registrationNumber = models.CharField(max_length=100, blank=True)
+    patientName = models.CharField(max_length=255, blank=True)
+    on_observation = models.JSONField(default=dict, blank=True)
+    tone = models.JSONField(default=dict, blank=True)
+    motor_system = models.JSONField(default=dict, blank=True)
+    clonus = models.JSONField(default=dict, blank=True)
+    coordination = models.JSONField(default=dict, blank=True)
+    pattern_and_position = models.JSONField(default=dict, blank=True)
+    limb_length_discrepancy = models.JSONField(default=dict, blank=True)
+    balance = models.JSONField(default=dict, blank=True)
+    sensation = models.JSONField(default=dict, blank=True)
+    assessments_used = models.JSONField(default=list, blank=True)
+    impression = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-assessment_date']
+    def __str__(self):
+        return f"{self.patientName} - {self.assessment_date}"
+    
+class AssessmentAnalysis(AuditModel):
+    registration_number = models.CharField(max_length=50)
+    patient_name = models.CharField(max_length=100)
+    age = models.CharField(max_length=10)
+    sex = models.CharField(max_length=10)
+    date = models.DateField()
+    billing_no = models.CharField(max_length=50, primary_key=True)
+    # Provisional Diagnosis
+    provisional_diagnosis = models.TextField(blank=True, null=True)
+    # Preferred Language
+    preferred_language = models.JSONField(default=dict)
+    # Home & Parenting
+    home_modification = models.TextField(blank=True, null=True)
+    parenting_modifications = models.TextField(blank=True, null=True)
+    # Mapping Therapy
+    mapping_therapy = models.JSONField(default=dict)
+    # Session Numbers
+    session_numbers = models.JSONField(default=dict)
+    # Therapy Methods
+    therapy_methods = models.JSONField(default=dict)
+    def __str__(self):
+        return f"{self.registration_number} - {self.patient_name}"

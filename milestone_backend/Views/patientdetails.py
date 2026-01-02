@@ -159,7 +159,7 @@ def get_all_patients(request):
     return Response(patient_data)
 
 @api_view(['GET'])
-@permission_classes([HasRolePermission])
+# @permission_classes([HasRolePermission])
 def get_all_patients_filterless(request):
     # Get all patients from the Registration model
     patients = Registration.objects.all()

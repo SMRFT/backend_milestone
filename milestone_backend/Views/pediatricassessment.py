@@ -47,7 +47,69 @@ def CreateHistoryRecordingSheet(request):
 @api_view(['GET'])
 @permission_classes([HasRolePermission])
 def GetHistoryRecordingSheet(request):
-    records = HistoryRecordingSheet.objects.all().order_by('-id')
+    records = HistoryRecordingSheet.objects.all().order_by('-created_date')
     serializer = HistoryRecordingSheetSerializer(records, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
+import json
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework import status
+
+@api_view(['GET'])
+@permission_classes([HasRolePermission])
+def GetHistoryRecordingSheetbyRegNO(request):
+    reg_no = request.query_params.get("registration_number")
+    records = HistoryRecordingSheet.objects.all().order_by('-created_date')
+
+    if reg_no:
+        filtered = []
+
+        for record in records:
+            identification = record.identification_data
+
+            try:
+                # ✅ If stored as string → load JSON
+                if isinstance(identification, str):
+                    identification = json.loads(identification)
+
+                # ✅ Now safely access dict
+                if isinstance(identification, dict) and identification.get("reg_no") == reg_no:
+                    filtered.append(record)
+
+            except Exception as e:
+                print("Exception:", e)
+                continue
+
+        records = filtered
+
+    serializer = HistoryRecordingSheetSerializer(records, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+@api_view(['PATCH'])
+@permission_classes([HasRolePermission])
+def UpdateHistoryRecordingSheet(request):
+    registration_number = request.data.get("registration_number")
+
+    if not registration_number:
+        return Response(
+            {"error": "Registration_Number is required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    record = get_object_or_404(
+        HistoryRecordingSheet,
+        registration_number=registration_number
+    )
+
+    serializer = HistoryRecordingSheetSerializer(
+        record,
+        data=request.data,
+        partial=True  # ✅ PATCH = partial update
+    )
+
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

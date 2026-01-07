@@ -56,10 +56,10 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 
-@api_view(['GET'])
+@api_view(['POST'])
 @permission_classes([HasRolePermission])
 def GetHistoryRecordingSheetbyRegNO(request):
-    reg_no = request.query_params.get("registration_number")
+    reg_no = request.data.get("registration_number")
     records = HistoryRecordingSheet.objects.all().order_by('-created_date')
 
     if reg_no:

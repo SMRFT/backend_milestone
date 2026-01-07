@@ -59,7 +59,8 @@ urlpatterns = [
     path("attendance-update/", attendance.update_attendance_by_reg_and_date, name="update_attendance_by_reg_and_date"),
     path("HistoryRecordingSheet/", pediatricassessment.CreateHistoryRecordingSheet, name="HistoryRecordingSheet"),
     path("GetHistoryRecordingSheet/", pediatricassessment.GetHistoryRecordingSheet, name="GetHistoryRecordingSheet"),
-    path("GetHistoryRecordingSheetbyRegNO/", pediatricassessment.GetHistoryRecordingSheetbyRegNO, name="GetHistoryRecordingSheet"),
+    path("GetHistoryRecordingSheetbyRegNO/",pediatricassessment.GetHistoryRecordingSheetbyRegNO, name="GetHistoryRecordingSheetbyRegNO"),
+
     path("UpdateHistoryRecordingSheet/", pediatricassessment.UpdateHistoryRecordingSheet, name="UpdateHistoryRecordingSheet"),
 
     path("update_attendance_sessions/", attendance.update_attendance_sessions, name="update_attendance_sessions"),

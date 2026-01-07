@@ -9,7 +9,7 @@ import logging
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.permissions import AllowAny
-from pyauth.auth import HasRoleAndDataPermission
+from pyauth.auth import HasRolePermission
 from dotenv import load_dotenv
 import time
 from django.utils.dateparse import parse_date
@@ -73,7 +73,7 @@ def update_with_audit(serializer, request):
 # GET OT PATIENTS
 # -----------------------------------
 @api_view(['GET'])
-@permission_classes([HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_ot_patients(request):
     queryset = filter_by_date(request)
     result = []
@@ -110,7 +110,7 @@ def get_ot_patients(request):
 # GET SPEECH PATIENTS
 # -----------------------------------
 @api_view(['GET'])
-@permission_classes([HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_speech_patients(request):
     queryset = filter_by_date(request)
     result = []
@@ -147,7 +147,7 @@ def get_speech_patients(request):
 # GET PT PATIENTS
 # -----------------------------------
 @api_view(['GET'])
-@permission_classes([HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_pt_patients(request):
     queryset = filter_by_date(request)
     result = []
@@ -184,7 +184,7 @@ def get_pt_patients(request):
 # GET PSYCHOLOGICAL PATIENTS
 # -----------------------------------
 @api_view(['GET'])
-@permission_classes([HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_psychological_patients(request):
     queryset = filter_by_date(request)
     result = []
@@ -218,7 +218,7 @@ def get_psychological_patients(request):
 
 
 @api_view(['GET'])
-@permission_classes([HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def get_all_category_patients(request):
     queryset = filter_by_date(request)
     result = []
@@ -263,7 +263,7 @@ def get_all_category_patients(request):
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def clinical_psychology_assessment(request):
 
     if request.method == 'GET':
@@ -288,7 +288,7 @@ def clinical_psychology_assessment(request):
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def occupational_therapy_assessment(request):
 
     if request.method == 'GET':
@@ -313,7 +313,7 @@ def occupational_therapy_assessment(request):
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def speech_therapy_assessment(request):
 
     if request.method == 'GET':
@@ -338,7 +338,7 @@ def speech_therapy_assessment(request):
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def physiotherapy_assessment(request):
 
     if request.method == 'GET':
@@ -362,7 +362,7 @@ def physiotherapy_assessment(request):
         return Response(serializer.errors, status=400)
 
 @api_view(['GET', 'POST'])
-@permission_classes([HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def assessment_analysis_list_create(request):
     if request.method == "GET":
         records = AssessmentAnalysis.objects.all()
@@ -396,7 +396,7 @@ def assessment_analysis_list_create(request):
  
 
 @api_view(['GET', 'PUT', 'PATCH'])
-@permission_classes([HasRoleAndDataPermission])
+@permission_classes([HasRolePermission])
 def assessment_analysis_detail(request, pk):
     try:
         record = AssessmentAnalysis.objects.get(pk=pk)

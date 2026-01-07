@@ -335,8 +335,8 @@ class PatientAttendance(AuditModel):
         verbose_name = "Patient Attendance"
         verbose_name_plural = "Patient Attendances"
 
-
 class HistoryRecordingSheet(AuditModel):
+    registration_number = models.CharField(max_length=100,primary_key=True)
     identification_data = models.JSONField()
     demographic_data = models.JSONField()
     presenting_complaints = models.CharField(max_length=5000)
@@ -351,26 +351,8 @@ class HistoryRecordingSheet(AuditModel):
     treatment_history= models.CharField(max_length=5000)
     general_history=models.JSONField()
     OverAllImpression = models.CharField(max_length=5000)
-    
-# class PatientAttendance(AuditModel):
-#     registration_number = models.CharField(max_length=50)
-#     date = models.DateField(default=date.today)
-#     session = models.CharField(max_length=50)
-#     # --- Store total charge (calculated sum of selected therapies) ---
-#     therapy_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-#     # --- Store all selected therapy details (list of JSON objects) ---
-#     therapy_details = models.JSONField(default=list, blank=True)
-#     # --- New Fields ---
-#     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-#     is_approved = models.BooleanField(default=False)
-#     # --- Soft delete / active flag ---
-#     is_active = models.BooleanField(default=True)
-#     def __str__(self):
-#         return f"{self.registration_number} - {self.date}"
-    
-#     class Meta:
-#         verbose_name = "PatientAttendance"
-#         verbose_name_plural = "PatientAttendances"
+    OverAllSummary = models.CharField(max_length=5000)
+    Recommendation = models.CharField(max_length=5000)
 
 class ClinicalPsychologyAssessment(AuditModel):
     assessment_date = models.DateField()

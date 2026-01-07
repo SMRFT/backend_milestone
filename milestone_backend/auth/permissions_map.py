@@ -36,6 +36,9 @@ PAGE_MAPPING = {
     "/_b_a_c_k_e_n_d/Milestone/all-patient-filterless/":'MDC-API-PDC',
     "/_b_a_c_k_e_n_d/Milestone/HistoryRecordingSheet/":'MDC-API-PDC',
     "/_b_a_c_k_e_n_d/Milestone/GetHistoryRecordingSheet/":'MDC-API-PDC',
+    r'^/_b_a_c_k_e_n_d/Milestone/GetHistoryRecordingSheetbyRegNO/?(\?.*)?$': 'MDC-API-PDC',
+    "/_b_a_c_k_e_n_d/Milestone/UpdateHistoryRecordingSheet/":"MDC-API-PDC",
+
     "/_b_a_c_k_e_n_d/Milestone/update_attendance_sessions/":'MDC-API-AT',
     r'^/_b_a_c_k_e_n_d/Milestone/get_all_patient_oldattendance/?(\?.*)?$': 'MDC-API-AT',
     
@@ -44,11 +47,11 @@ PAGE_MAPPING = {
     r'^/_b_a_c_k_e_n_d/Milestone/get_pt_patients/?(\?.*)?$':'MDC-P-GPP',
     r'^/_b_a_c_k_e_n_d/Milestone/get_psychological_patients/?(\?.*)?$':'MDC-P-GCP',
     r'^/_b_a_c_k_e_n_d/Milestone/get_all_category_patients/?(\?.*)?$':'MDC-P-GAP',
-    '/_b_a_c_k_e_n_d/Milestone/clinical/':'MDC-API-CGP',
-    '/_b_a_c_k_e_n_d/Milestone/ot/':'MDC-API-OGP',
-    '/_b_a_c_k_e_n_d/Milestone/speech/':'MDC-API-SGP',
-    '/_b_a_c_k_e_n_d/Milestone/physio/':'MDC-API-PGP',
-    '/_b_a_c_k_e_n_d/Milestone/assessment-analysis/':'MDC-API-AGP',
+    r'^/_b_a_c_k_e_n_d/Milestone/clinical/?(\?.*)?$':'MDC-API-CGP',
+    r'^/_b_a_c_k_e_n_d/Milestone/ot/?(\?.*)?$':'MDC-API-OGP',
+    r'^/_b_a_c_k_e_n_d/Milestone/speech/?(\?.*)?$':'MDC-API-SGP',
+    r'^/_b_a_c_k_e_n_d/Milestone/physio/?(\?.*)?$':'MDC-API-PGP',
+    r'^/_b_a_c_k_e_n_d/Milestone/assessment-analysis/?(\?.*)?$':'MDC-API-AGP',
     r'^/_b_a_c_k_e_n_d/Milestone/assessment-analysis/?(\?.*)?$':'MDC-P-AAU',
 
     '/_b_a_c_k_e_n_d/Milestone/all-assessments/':'',

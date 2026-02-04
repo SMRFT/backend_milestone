@@ -37,7 +37,7 @@ PAGE_MAPPING = {
     "/_b_a_c_k_e_n_d/Milestone/HistoryRecordingSheet/":'MDC-API-PDC',
     "/_b_a_c_k_e_n_d/Milestone/GetHistoryRecordingSheet/":'MDC-API-PDC',
     r'^/_b_a_c_k_e_n_d/Milestone/GetHistoryRecordingSheetbyRegNO/?(\?.*)?$': 'MDC-API-PDC',
-    "/_b_a_c_k_e_n_d/Milestone/UpdateHistoryRecordingSheet/":"MDC-API-PDC",
+    r'/_b_a_c_k_e_n_d/Milestone/UpdateHistoryRecordingSheet/?(\?.*)?$':"MDC-API-PDC",
 
     "/_b_a_c_k_e_n_d/Milestone/update_attendance_sessions/":'MDC-API-AT',
     r'^/_b_a_c_k_e_n_d/Milestone/get_all_patient_oldattendance/?(\?.*)?$': 'MDC-API-AT',

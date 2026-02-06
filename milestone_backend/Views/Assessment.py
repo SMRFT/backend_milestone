@@ -234,7 +234,7 @@ def get_all_category_patients(request):
             )
         except Exception:
             assessments = []
-
+        print("raw",raw_assessment)
         # ❌ Exclude Consultation category
         filtered_assessments = [
             a for a in assessments

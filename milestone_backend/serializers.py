@@ -362,3 +362,44 @@ class AssessmentAnalysisSerializer(serializers.ModelSerializer):
         model = AssessmentAnalysis
         fields = "__all__"
 
+from rest_framework import serializers
+from .models import GoalsAssessment
+
+from .models import Registration  # make sure imported
+
+class GoalsAssessmentSerializer(serializers.ModelSerializer):
+    patient_details = serializers.SerializerMethodField()
+    id = serializers.CharField(source="_id", read_only=True)
+
+    class Meta:
+        model = GoalsAssessment
+        fields = "__all__"
+        read_only_fields = ("_id",)
+
+    def get_patient_details(self, obj):
+        try:
+            patient = Registration.objects.get(
+                registration_number=obj.registration_number
+            )
+            return RegistrationSerializer(patient).data
+        except Registration.DoesNotExist:
+            return None
+
+    def validate(self, data):
+        # ✅ ONLY validate duplicates during CREATE
+        if self.instance:
+            return data   # skip validation for updates
+
+        registration_number = data.get("registration_number")
+        date = data.get("date")
+
+        if GoalsAssessment.objects.filter(
+            registration_number=registration_number,
+            date=date
+        ).exists():
+            raise serializers.ValidationError(
+                "Goal already exists for this registration number on this date. "
+                "Please use update endpoint."
+            )
+
+        return data

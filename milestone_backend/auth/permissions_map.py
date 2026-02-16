@@ -54,6 +54,10 @@ PAGE_MAPPING = {
     r'^/_b_a_c_k_e_n_d/Milestone/assessment-analysis/?(\?.*)?$':'MDC-API-AGP',
     r'^/_b_a_c_k_e_n_d/Milestone/assessment-analysis/?(\?.*)?$':'MDC-P-AAU',
 
+    # Goals
+    '/_b_a_c_k_e_n_d/Milestone/goals/':'MDC-API-AT',
+    r'^/_b_a_c_k_e_n_d/Milestone/goals/.*$':'MDC-API-AT',
+
     '/_b_a_c_k_e_n_d/Milestone/all-assessments/':'',
     '/_b_a_c_k_e_n_d/Milestone/login/':'',
     '/_b_a_c_k_e_n_d/Milestone/developmental-tasks/':'',

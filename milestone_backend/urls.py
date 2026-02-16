@@ -1,8 +1,7 @@
 from django.urls import path, re_path
 from . import views 
 from .views import pediatric_assessment_list,get_patients_report
-from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others,pediatricassessment, attendance, Assessment
-
+from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others,pediatricassessment, attendance, Assessment , goals
 
 urlpatterns = [
     path('therapy-reports/', therapybilling.get_therapy_reports, name='therapy-reports'),
@@ -80,4 +79,9 @@ urlpatterns = [
     path('physio/', Assessment.physiotherapy_assessment),
     path("assessment-analysis/", Assessment.assessment_analysis_list_create),
     path("assessment-analysis/<int:pk>/", Assessment.assessment_analysis_detail),
+    
+    path("goals/", goals.goals_assessment_list_create),
+    path('goals/<str:pk>/', goals.goals_assessment_update),
+    path("goals/<int:pk>/image/<str:image_id>/", goals.delete_goal_image),
+    path("goals/image/<str:image_id>/", goals.view_goal_image),
 ]

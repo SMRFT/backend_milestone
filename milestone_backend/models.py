@@ -1,4 +1,7 @@
-from django.db import models,transaction
+from djongo import models
+from djongo.models import ObjectIdField
+from django.db import transaction
+
 import datetime
 from django.utils.timezone import now
 from django.utils import timezone
@@ -291,7 +294,6 @@ class ConsultingDoctor(AuditModel):
         return self.name
 
 # models.py
-from django.db import models
 from datetime import date
 
 class PatientAttendance(AuditModel):
@@ -456,3 +458,22 @@ class AssessmentAnalysis(AuditModel):
     therapy_methods = models.JSONField(default=dict)
     def __str__(self):
         return f"{self.registration_number} - {self.patient_name}"
+
+class GoalsAssessment(AuditModel):   
+    _id = models.ObjectIdField(primary_key=True)
+
+    registration_number = models.CharField(max_length=50)
+    date = models.DateField()
+    deadline = models.DateField()
+    goals = models.JSONField(default=list, blank=True)
+    parent_comments = models.TextField(blank=True, null=True)
+    comments = models.TextField(blank=True, null=True)
+    recommendations = models.TextField(blank=True, null=True)
+    refference = models.CharField(max_length=500,blank=True, null=True)
+    goalsphoto = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        unique_together = ('registration_number', 'date')
+    def __str__(self):
+        return f"{self.registration_number} - {self.date}"
+    

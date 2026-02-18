@@ -471,9 +471,11 @@ class GoalsAssessment(AuditModel):
     recommendations = models.TextField(blank=True, null=True)
     refference = models.CharField(max_length=500,blank=True, null=True)
     goalsphoto = models.JSONField(default=list, blank=True)
+    goalsvideo = models.JSONField(default=list, blank=True)
 
     class Meta:
         unique_together = ('registration_number', 'date')
+        
     def __str__(self):
         return f"{self.registration_number} - {self.date}"
     

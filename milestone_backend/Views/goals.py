@@ -12,31 +12,33 @@ from bson import ObjectId
 from pyauth.auth import HasRolePermission
 from milestone_backend.models import GoalsAssessment
 from milestone_backend.serializers import GoalsAssessmentSerializer, RegistrationSerializer
+from django.http import FileResponse
+import mimetypes
+import json
 import os
 import certifi
 from dotenv import load_dotenv
 
 load_dotenv()  # Load from .env if present
 
-env_type = os.environ.get("ENV_CLASSIFICATION", "local")
-
-mongo_uri = os.environ.get("GLOBAL_DB_HOST")
-db_name = os.environ.get("MILESTONE_DB_NAME", "Milestone")
-
-if env_type in ["test", "prod"]:
-    client = MongoClient(mongo_uri)
-else:
-    client = MongoClient(mongo_uri, tls=True, tlsCAFile=certifi.where())
 # =====================================================
-# GRIDFS HELPERS (MODEL SAFE)
+# MONGO CLIENT & GRIDFS HELPERS (SINGLETON PATTERN)
 # =====================================================
+
+_mongo_client = None
+
+def get_mongo_client():
+    global _mongo_client
+    if _mongo_client is None:
+        mongo_uri = os.environ.get("GLOBAL_DB_HOST")
+        # Initialize MongoClient simply. 
+        # Pymongo will handle TLS if specified in the URI.
+        _mongo_client = MongoClient(mongo_uri)
+    return _mongo_client
 
 def get_gridfs():
-    mongo_uri = os.environ.get("GLOBAL_DB_HOST")
+    client = get_mongo_client()
     db_name = os.environ.get("MILESTONE_DB_NAME", "Milestone")
-    
-    # Connect to MongoDB
-    client = MongoClient(mongo_uri)
     db = client[db_name]
     return gridfs.GridFS(db)
 
@@ -61,9 +63,15 @@ def delete_image_from_gridfs(file_id):
 
 
 def get_image_base64(file_id):
+    """Note: Avoid using this for large files to prevent MemoryError"""
     fs = get_gridfs()
-    file = fs.get(ObjectId(file_id))
-    return base64.b64encode(file.read()).decode("utf-8")
+    try:
+        file = fs.get(ObjectId(file_id))
+        # Use a small chunk size to read if we must read it all at once (still risky for base64)
+        return base64.b64encode(file.read()).decode("utf-8")
+    except Exception as e:
+        print(f"Error reading file for base64 {file_id}: {str(e)}")
+        raise
 
 
 # =====================================================
@@ -79,9 +87,10 @@ def goals_assessment_list_create(request):
     if request.method == "POST":
         data = request.data.copy()
         images = data.pop("goalsphoto", [])
+        videos = data.pop("goalsvideo", [])
 
         # Normalize JSON fields
-        for field in ["goals", "goalsphoto"]:
+        for field in ["goals", "goalsphoto", "goalsvideo"]:
             value = data.get(field, [])
             if isinstance(value, str):
                 try:
@@ -90,24 +99,48 @@ def goals_assessment_list_create(request):
                     data[field] = []
 
         image_ids = []
-
         if isinstance(images, list):
             for img in images:
-                image_ids.append(
-                    save_image_to_gridfs(
-                        img,
-                        filename=f"goals_{timezone.now().timestamp()}.png"
+                if img.startswith("data:"): # Only save if it's new base64 data
+                    image_ids.append(
+                        save_image_to_gridfs(
+                            img,
+                            filename=f"goals_photo_{timezone.now().timestamp()}.png"
+                        )
                     )
-                )
+                else: 
+                    image_ids.append(img) # Keep existing ID
 
         data["goalsphoto"] = image_ids
+
+        video_ids = []
+        if isinstance(videos, list):
+            for vid in videos:
+                if vid.startswith("data:"):
+                    # For videos, we might need a different extension, 
+                    # but save_image_to_gridfs is generic enough if we pass right filename
+                    # However, let's detect mime if possible or just use mp4 as default for mobile
+                    ext = "mp4"
+                    if "video/quicktime" in vid: ext = "mov"
+                    elif "video/webm" in vid: ext = "webm"
+                    
+                    video_ids.append(
+                        save_image_to_gridfs(
+                            vid,
+                            filename=f"goals_video_{timezone.now().timestamp()}.{ext}"
+                        )
+                    )
+                else:
+                    video_ids.append(vid)
+        
+        data["goalsvideo"] = video_ids
 
         serializer = GoalsAssessmentSerializer(data=data)
         if serializer.is_valid():
             instance = serializer.save(
                 created_by=employee_id,
                 lastmodified_by=employee_id,
-                lastmodified_date=datetime.now()
+                lastmodified_date=timezone.now()
             )
             return Response(serializer.data, status=201)
 
@@ -141,6 +174,35 @@ def goals_assessment_update(request, pk):
         except json.JSONDecodeError:
             data["goalsphoto"] = []  # fallback to empty list
 
+    # Ensure goalsvideo is a list
+    goalsvideo_data = data.get("goalsvideo", [])
+    if isinstance(goalsvideo_data, str):
+        try:
+            data["goalsvideo"] = json.loads(goalsvideo_data)
+        except json.JSONDecodeError:
+            data["goalsvideo"] = []
+
+    # Handle NEW media in PATCH (if any base64 passed)
+    if "goalsphoto" in data:
+        new_photos = []
+        for img in data["goalsphoto"]:
+            if isinstance(img, str) and img.startswith("data:"):
+                new_photos.append(save_image_to_gridfs(img, filename=f"goals_photo_{timezone.now().timestamp()}.png"))
+            else:
+                new_photos.append(img)
+        data["goalsphoto"] = new_photos
+
+    if "goalsvideo" in data:
+        new_videos = []
+        for vid in data["goalsvideo"]:
+            if isinstance(vid, str) and vid.startswith("data:"):
+                ext = "mp4" # default
+                if "video/quicktime" in vid: ext = "mov"
+                new_videos.append(save_image_to_gridfs(vid, filename=f"goals_video_{timezone.now().timestamp()}.{ext}"))
+            else:
+                new_videos.append(vid)
+        data["goalsvideo"] = new_videos
+
     # Ensure goals is a list
     goals_data = data.get("goals", [])
     if isinstance(goals_data, str):
@@ -148,10 +210,6 @@ def goals_assessment_update(request, pk):
             data["goals"] = json.loads(goals_data)
         except json.JSONDecodeError:
             data["goals"] = []
-
-
-    print("PATCH DATA:", data)
-    print("GOALS TYPE:", type(data.get("goals")))
 
     serializer = GoalsAssessmentSerializer(
         instance,
@@ -198,3 +256,31 @@ def view_goal_image(request, image_id):
         })
     except Exception:
         return Response({"error": "Image not found"}, status=404)
+
+@api_view(["GET"])
+def view_goal_file(request, file_id):
+    """Serve files directly from GridFS for video playback and high-res images"""
+    try:
+        fs = get_gridfs()
+        file = fs.get(ObjectId(file_id))
+        
+        filename = getattr(file, 'filename', f"file_{file_id}")
+        content_type, _ = mimetypes.guess_type(filename)
+        
+        if not content_type:
+            # Fallback for common types if guess fails
+            if filename.endswith('.mp4'): content_type = 'video/mp4'
+            elif filename.endswith('.png'): content_type = 'image/png'
+            elif filename.endswith('.jpg') or filename.endswith('.jpeg'): content_type = 'image/jpeg'
+            else: content_type = 'application/octet-stream'
+
+        # FileResponse handles streaming automatically from file-like objects (GridOut)
+        response = FileResponse(file, content_type=content_type)
+        # Enable seeking for videos (Range requests)
+        response['Accept-Ranges'] = 'bytes'
+        return response
+    except gridfs.errors.NoFile:
+        return Response({"error": "File not found"}, status=404)
+    except Exception as e:
+        print(f"Error serving file {file_id}: {str(e)}")
+        return Response({"error": "Internal server error during file retrieval"}, status=500)

@@ -84,4 +84,5 @@ urlpatterns = [
     path('goals/<str:pk>/', goals.goals_assessment_update),
     path("goals/<int:pk>/image/<str:image_id>/", goals.delete_goal_image),
     path("goals/image/<str:image_id>/", goals.view_goal_image),
+    path("goals/file/<str:file_id>/", goals.view_goal_file),
 ]

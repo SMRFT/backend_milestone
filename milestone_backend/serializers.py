@@ -367,6 +367,55 @@ from .models import GoalsAssessment
 
 from .models import Registration  # make sure imported
 
+import ast
+import json
+
+import re
+
+def parse_python_string(val):
+    """
+    Very robust helper to convert stringified Python objects (like OrderedDict)
+    back into proper Python dictionaries or lists.
+    """
+    if not isinstance(val, str):
+        return val
+    
+    val = val.strip()
+    if not val:
+        return val
+
+    # 1. If it's explicitly a string beginning with OrderedDict
+    if "OrderedDict" in val:
+        try:
+            # Handle potential nesting: OrderedDict([('url', '...'), ('id', '...')])
+            # A simple way is to find the first '(' and last ')'
+            start = val.find('(')
+            end = val.rfind(')')
+            if start != -1 and end != -1:
+                inner = val[start+1:end]
+                # Try literal_eval on the inner list of tuples
+                parsed = ast.literal_eval(inner)
+                if isinstance(parsed, list):
+                    return dict(parsed)
+        except Exception:
+            pass
+
+    # 2. Try the regex extraction if we just want the ID from OrderedDict([('url', '...'), ('id', '69956...')])
+    # This is a bit of a hack but very effective for this specific issue
+    id_match = re.search(r"'id',\s*'([a-f0-9]{24})'", val)
+    if id_match:
+        return id_match.group(1)
+
+    # 3. Fallback to standard literal_eval for lists/dicts as strings
+    try:
+        return ast.literal_eval(val)
+    except Exception:
+        # Final fallback: standard JSON or the string itself
+        try:
+            return json.loads(val)
+        except Exception:
+            return val
+
 class GoalsAssessmentSerializer(serializers.ModelSerializer):
     patient_details = serializers.SerializerMethodField()
     id = serializers.CharField(source="_id", read_only=True)
@@ -375,6 +424,65 @@ class GoalsAssessmentSerializer(serializers.ModelSerializer):
         model = GoalsAssessment
         fields = "__all__"
         read_only_fields = ("_id",)
+
+    def to_representation(self, instance):
+        """Custom serialization to handle file serving URLs"""
+        data = super().to_representation(instance)
+        
+        # Helper to ensure we have a clean list of objects/ids
+        def ensure_clean_list(val):
+            if not val: return []
+            
+            # 1. Ensure it's a list first
+            raw_list = val
+            if isinstance(val, str):
+                parsed = parse_python_string(val)
+                raw_list = parsed if isinstance(parsed, list) else [parsed]
+            
+            if not isinstance(raw_list, list):
+                raw_list = [raw_list]
+                
+            # 2. Clean each element in the list
+            cleaned_list = []
+            for item in raw_list:
+                if not item: continue
+                cleaned_item = parse_python_string(item)
+                cleaned_list.append(cleaned_item)
+            return cleaned_list
+
+        # Transform goalsphoto from [id1, ...] to [{"file": id1, "url": "..."}, ...]
+        if 'goalsphoto' in data:
+            photos = ensure_clean_list(data['goalsphoto'])
+            formatted_photos = []
+            for p in photos:
+                # Extract file_id: could be string ID, or dict with file/id key
+                if isinstance(p, dict):
+                    file_id = p.get('file') or p.get('id') or p.get('_id')
+                else:
+                    file_id = str(p)
+                
+                if file_id:
+                    # Always generate a local-style URL, don't use external ones
+                    url = f"/goals/file/{file_id}/"
+                    formatted_photos.append({"file": file_id, "url": url})
+            data['goalsphoto'] = formatted_photos
+
+        # Transform goalsvideo from [id1, ...] to [{"file": id1, "url": "..."}, ...]
+        if 'goalsvideo' in data:
+            videos = ensure_clean_list(data['goalsvideo'])
+            formatted_videos = []
+            for v in videos:
+                if isinstance(v, dict):
+                    file_id = v.get('file') or v.get('id') or v.get('_id')
+                else:
+                    file_id = str(v)
+                
+                if file_id:
+                    url = f"/goals/file/{file_id}/"
+                    formatted_videos.append({"file": file_id, "url": url})
+            data['goalsvideo'] = formatted_videos
+
+        return data
 
     def get_patient_details(self, obj):
         try:

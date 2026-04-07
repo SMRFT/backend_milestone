@@ -479,3 +479,17 @@ class GoalsAssessment(AuditModel):
     def __str__(self):
         return f"{self.registration_number} - {self.date}"
     
+class leaveform(AuditModel):
+    registration_number = models.CharField(max_length=50)
+    leave_date = models.DateField()
+    leave_reason = models.TextField(blank=True, null=True)
+    leave_status = models.CharField(max_length=50,default="Pending")
+    leave_approved_by = models.CharField(max_length=50,null=True, blank=True)
+    leave_approved_date = models.DateField(null=True, blank=True)
+    leave_reject_comments = models.TextField(blank=True, null=True)
+    
+    class Meta:
+        unique_together = ('registration_number', 'leave_date')
+        db_table = 'milestone_backend_leaveform'
+    def __str__(self):
+        return f"{self.registration_number} - {self.leave_date}"

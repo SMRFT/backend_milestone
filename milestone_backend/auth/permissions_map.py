@@ -80,6 +80,11 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/get-cbcl/<str:childName>/':'',
     '/_b_a_c_k_e_n_d/Milestone/oldtherapy-reports/?(\?.*)?$':'MDC-API-THR',
 
+    '/_b_a_c_k_e_n_d/Milestone/submit-leave/':'',
+    '/_b_a_c_k_e_n_d/Milestone/get-pending-leaves/':'',
+    '/_b_a_c_k_e_n_d/Milestone/update-leave-status/':'',
+    r'^/_b_a_c_k_e_n_d/Milestone/get-leaves-report/?(\?.*)?$':'',
+
     '/therapy-reports/':'MDC-API-THR',
     '/get_patient_assessments/':'MDC-API-GAS',
     '/others-reports/':'MDC-API-RTS',

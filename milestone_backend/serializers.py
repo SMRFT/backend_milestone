@@ -511,3 +511,13 @@ class GoalsAssessmentSerializer(serializers.ModelSerializer):
             )
 
         return data
+
+from rest_framework import serializers
+from .models import leaveform
+
+class LeaveFormSerializer(serializers.ModelSerializer):
+    id = serializers.CharField(read_only=True)
+    
+    class Meta:
+        model = leaveform
+        fields = '__all__'

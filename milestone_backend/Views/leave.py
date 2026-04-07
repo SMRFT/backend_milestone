@@ -8,7 +8,7 @@ from pyauth.auth import HasRolePermission
 import json
 
 @api_view(['GET'])
-# @permission_classes([HasRolePermission])
+@permission_classes([HasRolePermission])
 def get_pending_leaves(request):
     """
     Fetch all pending leave requests.
@@ -37,7 +37,7 @@ def get_pending_leaves(request):
         return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST'])
-# @permission_classes([HasRolePermission])
+@permission_classes([HasRolePermission])
 def submit_leave(request):
     """
     Submit a new leave request.
@@ -54,7 +54,7 @@ def submit_leave(request):
         return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['PATCH'])
-# @permission_classes([HasRolePermission])
+@permission_classes([HasRolePermission])
 def update_leave_status(request):
     """
     Approve or Reject a leave request.
@@ -101,6 +101,7 @@ def update_leave_status(request):
         return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
+@permission_classes([HasRolePermission])
 def get_leaves_report(request):
     """
     Fetch leave reports (Approved/Rejected/Pending) with date filter.

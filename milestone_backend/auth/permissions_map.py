@@ -57,6 +57,16 @@ PAGE_MAPPING = {
     # Goals
     '/_b_a_c_k_e_n_d/Milestone/goals/':'MDC-API-AT',
     r'^/_b_a_c_k_e_n_d/Milestone/goals/.*$':'MDC-API-AT',
+    '/_b_a_c_k_e_n_d/Milestone/development-goals/':'MDC-API-AT',
+    r'^/_b_a_c_k_e_n_d/Milestone/development-goals/.*$':'MDC-API-AT',
+    '/_b_a_c_k_e_n_d/Milestone/goal-therapy-types/':'MDC-API-AT',
+    r'^/_b_a_c_k_e_n_d/Milestone/goal-therapy-types/.*$':'MDC-API-AT',
+    '/_b_a_c_k_e_n_d/Milestone/goal-domains/':'MDC-API-AT',
+    r'^/_b_a_c_k_e_n_d/Milestone/goal-domains/.*$':'MDC-API-AT',
+    '/_b_a_c_k_e_n_d/Milestone/goal-levels/':'MDC-API-AT',
+    r'^/_b_a_c_k_e_n_d/Milestone/goal-levels/.*$':'MDC-API-AT',
+    '/_b_a_c_k_e_n_d/Milestone/goal-libraries/':'MDC-API-AT',
+    r'^/_b_a_c_k_e_n_d/Milestone/goal-libraries/.*$':'MDC-API-AT',
 
     '/_b_a_c_k_e_n_d/Milestone/all-assessments/':'',
     '/_b_a_c_k_e_n_d/Milestone/login/':'',

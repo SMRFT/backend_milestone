@@ -1,7 +1,7 @@
 from django.urls import path, re_path
 from . import views 
 from .views import pediatric_assessment_list,get_patients_report
-from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others,pediatricassessment, attendance, Assessment , goals, leave
+from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others,pediatricassessment, attendance, Assessment , goals, leave, developmentgoals, goalsmaster
 
 urlpatterns = [
     path('therapy-reports/', therapybilling.get_therapy_reports, name='therapy-reports'),
@@ -90,4 +90,16 @@ urlpatterns = [
     path("get-pending-leaves/", leave.get_pending_leaves, name="get_pending_leaves"),
     path("update-leave-status/", leave.update_leave_status, name="update_leave_status"),
     path("get-leaves-report/", leave.get_leaves_report, name="get_leaves_report"),
+    path("development-goals/", developmentgoals.development_goals_list_create, name="development_goals_list_create"),
+    path("development-goals/<str:pk>/", developmentgoals.development_goals_detail, name="development_goals_detail"),
+
+    # Goals Master Data
+    path('goal-therapy-types/', goalsmaster.therapy_type_list_create, name='therapy_type_list_create'),
+    path('goal-therapy-types/<str:pk>/', goalsmaster.therapy_type_detail, name='therapy_type_detail'),
+    path('goal-domains/', goalsmaster.domain_list_create, name='domain_list_create'),
+    path('goal-domains/<str:pk>/', goalsmaster.domain_detail, name='domain_detail'),
+    path('goal-levels/', goalsmaster.level_list_create, name='level_list_create'),
+    path('goal-levels/<str:pk>/', goalsmaster.level_detail, name='level_detail'),
+    path('goal-libraries/', goalsmaster.goal_library_list_create, name='goal_library_list_create'),
+    path('goal-libraries/<str:pk>/', goalsmaster.goal_library_detail, name='goal_library_detail'),
 ]

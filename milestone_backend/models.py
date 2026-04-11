@@ -493,3 +493,77 @@ class leaveform(AuditModel):
         db_table = 'milestone_backend_leaveform'
     def __str__(self):
         return f"{self.registration_number} - {self.leave_date}"
+
+class DevelopmentGoals(AuditModel):
+    _id = models.ObjectIdField()
+    registration_number = models.CharField(max_length=50)
+    date = models.DateField()
+    development_goals = models.JSONField(default=list, blank=True)
+
+    def __str__(self):
+        return f"{self.registration_number} - {self.date}"
+
+class TherapyDetails(AuditModel):
+    _id = models.ObjectIdField()
+    therapy_name = models.CharField(max_length=255)
+    
+    class Meta:
+        db_table = "milestone_backend_therapydetails"
+
+class GoalDomain(AuditModel):
+    _id = models.ObjectIdField()
+    name = models.CharField(max_length=200)
+    therapy_type = models.CharField(max_length=100) # Storing ID of TherapyDetails as string
+    domain_no = models.CharField(max_length=20, blank=True)
+    
+    def save(self, *args, **kwargs):
+        if not self.domain_no:
+            try:
+                from bson import ObjectId
+                therapy = TherapyDetails.objects.get(_id=ObjectId(self.therapy_type))
+                prefix = therapy.therapy_name[:2].upper()
+            except:
+                prefix = "GN"
+                
+            count = GoalDomain.objects.filter(therapy_type=self.therapy_type).count()
+            self.domain_no = f"D-{prefix}-{count+1:03}"
+        super().save(*args, **kwargs)
+
+    def __str__(self): return self.name
+
+class GoalLevel(AuditModel):
+    _id = models.ObjectIdField()
+    name = models.CharField(max_length=50) 
+    def __str__(self): return self.name
+
+class GoalLibrary(AuditModel):
+    _id = models.ObjectIdField()
+    goal_name = models.TextField()
+    goal_no = models.CharField(max_length=20, blank=True)
+    domain = models.CharField(max_length=100) # Storing ID as string
+    therapy_type = models.CharField(max_length=100) # Storing ID as string
+    level = models.CharField(max_length=100, blank=True, null=True) # Storing ID as string
+    
+    def save(self, *args, **kwargs):
+        if not self.goal_no:
+            prefix = "G"
+            try:
+                from bson import ObjectId
+                # Try lookup by ObjectId first (backward compatibility)
+                if len(self.domain) == 24: 
+                    domain_obj = GoalDomain.objects.get(_id=ObjectId(self.domain))
+                    prefix = domain_obj.domain_no
+                else: 
+                    # Use domain_no directly if it was saved as name/no
+                    prefix = self.domain
+            except:
+                prefix = self.domain or "G"
+                
+            count = GoalLibrary.objects.filter(domain=self.domain).count()
+            # Clean prefix if it contains spaces or special characters
+            prefix_clean = str(prefix).split('(')[0].strip()
+            self.goal_no = f"G-{prefix_clean}-{count+1:03}"
+        super().save(*args, **kwargs)
+
+    def __str__(self): return self.goal_name
+

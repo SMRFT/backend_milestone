@@ -341,7 +341,7 @@ class HistoryRecordingSheet(AuditModel):
     registration_number = models.CharField(max_length=100,primary_key=True)
     identification_data = models.JSONField()
     demographic_data = models.JSONField()
-    presenting_complaints = models.CharField(max_length=5000)
+    presenting_complaints = models.JSONField()
     history_of_present_illness= models.JSONField()
     family_history=models.JSONField()
     personal_history=models.JSONField()

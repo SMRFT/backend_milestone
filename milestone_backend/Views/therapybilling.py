@@ -183,6 +183,17 @@ def safe_float(v):
         except Exception:
             return 0.0
 
+def safe_json_parse(v, default=None):
+    """Safely parse JSON strings or return original value if already an object/list."""
+    if v is None:
+        return default
+    if not isinstance(v, str):
+        return v
+    try:
+        return json.loads(v)
+    except:
+        return v # Return as-is if parsing fails (fallback)
+
 
 @api_view(["GET"])
 @permission_classes([HasRolePermission])
@@ -238,7 +249,7 @@ def pending_payment_report(request):
         r.registration_number: {
             "name_of_child": r.name_of_child,
             "dob": r.dob if r.dob else None,
-            "age": r.age,
+            "age": safe_json_parse(r.age, {}),
             "sex": r.sex,
             "mother_name": r.mother_name,
             "father_name": r.father_name,
@@ -262,7 +273,7 @@ def pending_payment_report(request):
             "registration_number": a.registration_number,
             "attendance_date": a.attendance_date.isoformat() if a.attendance_date else None,
             "session": a.session,
-            "therapy_details": a.therapy_details,
+            "therapy_details": safe_json_parse(a.therapy_details, []),
             "therapy_charge": safe_float(a.therapy_charge),
             "discount": safe_float(a.discount),
             "not_attending": safe_float(a.not_attending),
@@ -270,16 +281,18 @@ def pending_payment_report(request):
             "total_amount": amt,
             "total_amount_paid": paid,
             "total_due": round(amt - paid, 2),
-            "bill_details": a.bill_details,
+            "bill_details": safe_json_parse(a.bill_details, []),
+            "consultant_doctor": safe_json_parse(a.consultant_doctor, []),
         }
 
         # Billing info
         bills_info = []
         try:
-            if a.bill_details:
-                bills = list(TherapyBilling.objects.filter(billing_no__in=a.bill_details))
+            bill_nos = attendance_obj["bill_details"]
+            if bill_nos and isinstance(bill_nos, list):
+                bills = list(TherapyBilling.objects.filter(billing_no__in=bill_nos))
                 bill_map = {b.billing_no: b for b in bills}
-                for bno in a.bill_details:
+                for bno in bill_nos:
                     b = bill_map.get(bno)
                     if b:
                         b_total = safe_float(b.total_amount)

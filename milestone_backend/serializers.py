@@ -54,9 +54,20 @@ class SkillTestResultSerializer(serializers.ModelSerializer):
 
 class TherapyBillingSerializer(serializers.ModelSerializer):
     id = ObjectIdField(read_only=True)
+    patient_info = serializers.SerializerMethodField()
+
     class Meta:
         model = TherapyBilling
         fields = '__all__'
+
+    def get_patient_info(self, obj):
+        try:
+            patient = Registration.objects.filter(registration_number=obj.registration_number).first()
+            if patient:
+                return {"name_of_child": patient.name_of_child}
+        except Exception:
+            pass
+        return None
 
 class OthersBillingSerializer(serializers.ModelSerializer):
     id = ObjectIdField(read_only=True)

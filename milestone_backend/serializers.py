@@ -17,31 +17,37 @@ class ObjectIdField(serializers.Field):
         return data
 
 class RegistrationSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = Registration
         fields = '__all__'
 
 class PatientAssessmentSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)    
     class Meta:
         model = PatientAssessment
         fields = '__all__'
 
 class EmployeeRegistrationSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = EmployeeRegistration
         fields = '__all__'
 
 class DevelopmentalTaskSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = DevelopmentalTask
         fields = '__all__'
 
 class PediatricAssessmentSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = PediatricAssessment
         fields = '__all__'
 
 class SkillTestResultSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = SkillTestResult
         fields = '__all__'
@@ -59,66 +65,79 @@ class OthersBillingSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class MCHATResponseSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = MCHATResponse
         fields = '__all__'
 
 class ReferralDoctorSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = ReferralDoctor
         fields = '__all__'
 
 class ChildLanguageAssessmentSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = ChildLanguageAssessment
         fields = '__all__'
 
 class DevelopmentalScreeningTaskSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = DevelopmentalScreeningTask
         fields = '__all__'
 
 class CBCLSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = CBCL
         fields = '__all__'
 
 class ConsultingDoctorSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = ConsultingDoctor
         fields = '__all__'
 
 class PatientAttendanceSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = PatientAttendance
         fields = '__all__'
 
 class HistoryRecordingSheetSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = HistoryRecordingSheet
         fields = '__all__'
 
 class ClinicalPsychologyAssessmentSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = ClinicalPsychologyAssessment
         fields = '__all__'
 
 class OccupationalTherapyAssessmentSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = OccupationalTherapyAssessment
         fields = '__all__'
 
 class SpeechTherapyAssessmentSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = SpeechTherapyAssessment
         fields = '__all__'
 
 class PhysiotherapyAssessmentSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = PhysiotherapyAssessment
         fields = '__all__'
 
 class AssessmentAnalysisSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = AssessmentAnalysis
         fields = '__all__'
@@ -131,6 +150,7 @@ class GoalsAssessmentSerializer(serializers.ModelSerializer):
 
 # Mapping to expected name in Views/leave.py
 class LeaveFormSerializer(serializers.ModelSerializer):
+    _id = serializers.CharField(source='id', read_only=True)
     class Meta:
         model = leaveform
         fields = '__all__'

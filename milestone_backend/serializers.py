@@ -9,23 +9,6 @@ from .models import (
     DevelopmentGoals, TherapyDetails, GoalDomain, GoalLevel, GoalLibrary
 )
 from djongo.models import ObjectIdField
-from bson import ObjectId
-from .models import ReferralDoctor
-from .models import ConsultingDoctor
-from rest_framework import serializers
-from .models import PediatricAssessment
-from rest_framework import serializers
-from .models import TherapyBilling
-from bson import ObjectId  # Import for handling MongoDB ObjectId
-from rest_framework import serializers
-from .models import OthersBilling
-import os
-from pymongo import DESCENDING, MongoClient
-from datetime import datetime ,timedelta ,date
-import json
-from bson import ObjectId  # Import for handling MongoDB ObjectId
-from bson.decimal128 import Decimal128
-from datetime import datetime, date
 
 class ObjectIdField(serializers.Field):
     def to_representation(self, value):
@@ -110,6 +93,11 @@ class PediatricAssessmentSerializer(serializers.ModelSerializer):
 
 from bson import ObjectId
 from decimal import Decimal
+import os
+from pymongo import MongoClient
+from bson.decimal128 import Decimal128
+from pymongo import DESCENDING, MongoClient
+from datetime import datetime ,timedelta ,date
 
 _mongo_client_serialization = None
 _attendance_col_serialization = None

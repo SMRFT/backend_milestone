@@ -112,6 +112,7 @@ def therapy_billing(request):
 
     return Response(serializer.errors, status=400)
 
+import os
 @api_view(['GET'])
 @permission_classes([HasRolePermission])
 def get_therapy_reports(request):

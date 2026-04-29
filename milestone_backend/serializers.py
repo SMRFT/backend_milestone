@@ -77,7 +77,7 @@ class ReferralDoctorSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ChildLanguageAssessmentSerializer(serializers.ModelSerializer):
-        id = ObjectIdField(read_only=True)
+    id = ObjectIdField(read_only=True)
 
     class Meta:
         model = ChildLanguageAssessment

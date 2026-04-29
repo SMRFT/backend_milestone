@@ -47,11 +47,13 @@ class SkillTestResultSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class TherapyBillingSerializer(serializers.ModelSerializer):
+    id = ObjectIdField(read_only=True)
     class Meta:
         model = TherapyBilling
         fields = '__all__'
 
 class OthersBillingSerializer(serializers.ModelSerializer):
+    id = ObjectIdField(read_only=True)
     class Meta:
         model = OthersBilling
         fields = '__all__'

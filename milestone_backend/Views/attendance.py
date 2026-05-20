@@ -81,6 +81,80 @@ def parse_bill_details(bill_details):
             return []
 
     return []
+def safe_parse_json(value):
+    if not isinstance(value, str):
+        return value
+    
+    # 1. Try standard JSON parsing
+    try:
+        parsed = json.loads(value)
+        if isinstance(parsed, str):
+            return safe_parse_json(parsed)
+        return parsed
+    except (ValueError, TypeError):
+        pass
+
+    # 2. Try handling Python representation strings (e.g. OrderedDict, python dicts/lists)
+    if 'OrderedDict' in value or 'dict' in value or '(' in value or '[' in value:
+        from collections import OrderedDict
+        try:
+            safe_ns = {
+                'OrderedDict': OrderedDict,
+                'dict': dict,
+                'list': list,
+                'tuple': tuple
+            }
+            parsed = eval(value, {"__builtins__": None}, safe_ns)
+            
+            def convert_to_json_types(obj):
+                if isinstance(obj, OrderedDict) or isinstance(obj, dict):
+                    return {k: convert_to_json_types(v) for k, v in obj.items()}
+                elif isinstance(obj, list) or isinstance(obj, tuple):
+                    return [convert_to_json_types(i) for i in obj]
+                else:
+                    return obj
+            
+            return convert_to_json_types(parsed)
+        except Exception:
+            pass
+
+    # 3. Fallback: try converting python single quote representation to valid JSON
+    try:
+        repr_val = value.replace("'", '"')
+        repr_val = repr_val.replace(': True', ': true').replace(': False', ': false').replace(': None', ': null')
+        repr_val = repr_val.replace(', True', ', true').replace(', False', ', false').replace(', None', ', null')
+        repr_val = repr_val.replace('[True', '[true').replace('[False', '[false').replace('[None', '[null')
+        parsed = json.loads(repr_val)
+        if isinstance(parsed, str):
+            return safe_parse_json(parsed)
+        return parsed
+    except (ValueError, TypeError):
+        pass
+
+    return value
+
+def clean_mongo_object(obj):
+    """Recursively convert MongoDB types (Decimal128, ObjectId, datetime) into JSON-safe values, parsing specific JSON fields."""
+    if isinstance(obj, Decimal128):
+        return float(obj.to_decimal())
+    elif isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, ObjectId):
+        return str(obj)
+    elif isinstance(obj, datetime) or isinstance(obj, date):
+        return obj.isoformat()
+    elif isinstance(obj, list):
+        return [clean_mongo_object(i) for i in obj]
+    elif isinstance(obj, dict):
+        cleaned = {}
+        for k, v in obj.items():
+            if k in ['age', 'reason_for_visit', 'source_of_referral', 'assessments']:
+                cleaned[k] = safe_parse_json(v)
+            else:
+                cleaned[k] = clean_mongo_object(v)
+        return cleaned
+    else:
+        return obj
 
 @api_view(['GET'])
 @permission_classes([HasRolePermission])
@@ -220,7 +294,7 @@ def get_all_attendance_patients(request):
             total_charge = sum(a["therapy_charge"] for a in patient_att)
 
             response_data.append({
-                **patient,
+                **clean_mongo_object(patient),
                 "attendances": patient_att,
                 "total_therapy_charge": total_charge,
                 "total_sessions": len(patient_att),
@@ -349,23 +423,7 @@ db = client[DB_NAME]
 attendance_col = db["milestone_backend_patientattendance"]
 registration_col = db["milestone_backend_registration"]
 
-# ✅ JSON-safe cleaner
-def clean_mongo_object(obj):
-    """Recursively convert MongoDB types (Decimal128, ObjectId, datetime) into JSON-safe values."""
-    if isinstance(obj, Decimal128):
-        return float(obj.to_decimal())
-    elif isinstance(obj, Decimal):
-        return float(obj)
-    elif isinstance(obj, ObjectId):
-        return str(obj)
-    elif isinstance(obj, datetime) or isinstance(obj, date):
-        return obj.isoformat()
-    elif isinstance(obj, list):
-        return [clean_mongo_object(i) for i in obj]
-    elif isinstance(obj, dict):
-        return {k: clean_mongo_object(v) for k, v in obj.items()}
-    else:
-        return obj
+# clean_mongo_object is defined at the top of this file
 
 @api_view(['GET'])
 @permission_classes([HasRolePermission])  # remove permission temporarily for testing
@@ -524,7 +582,7 @@ def get_pending_attendance_requests(request):
         # --- Fetch registrations ---
         registrations = list(registration_col.find({}, {"_id": 0}))
         registration_map = {
-            reg.get("registration_number"): reg for reg in registrations
+            reg.get("registration_number"): clean_mongo_object(reg) for reg in registrations
         }
 
         response_data = []
@@ -611,22 +669,7 @@ def get_pending_attendance_requests(request):
 
 db = client["Milestone"]
 
-def clean_mongo_object(obj):
-    """Recursively convert MongoDB types (Decimal128, ObjectId, datetime) into JSON-safe values."""
-    if isinstance(obj, Decimal128):
-        return float(obj.to_decimal())
-    elif isinstance(obj, Decimal):
-        return float(obj)
-    elif isinstance(obj, ObjectId):
-        return str(obj)
-    elif isinstance(obj, datetime) or isinstance(obj, date):
-        return obj.isoformat()
-    elif isinstance(obj, list):
-        return [clean_mongo_object(i) for i in obj]
-    elif isinstance(obj, dict):
-        return {k: clean_mongo_object(v) for k, v in obj.items()}
-    else:
-        return obj
+# clean_mongo_object is defined at the top of this file
     
 @api_view(["PATCH"])
 @permission_classes([HasRolePermission])

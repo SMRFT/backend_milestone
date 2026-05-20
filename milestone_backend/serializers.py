@@ -1,3 +1,4 @@
+import json
 from rest_framework import serializers
 from .models import (
     Registration, PatientAssessment, EmployeeRegistration, DevelopmentalTask, 
@@ -15,7 +16,59 @@ class ObjectIdField(serializers.Field):
         return str(value)
     def to_internal_value(self, data):
         return ObjectId(data)
+
+def safe_parse_json(value):
+    if not isinstance(value, str):
+        return value
     
+    # 1. Try standard JSON parsing
+    try:
+        parsed = json.loads(value)
+        if isinstance(parsed, str):
+            return safe_parse_json(parsed)
+        return parsed
+    except (ValueError, TypeError):
+        pass
+
+    # 2. Try handling Python representation strings (e.g. OrderedDict, python dicts/lists)
+    if 'OrderedDict' in value or 'dict' in value or '(' in value or '[' in value:
+        from collections import OrderedDict
+        try:
+            safe_ns = {
+                'OrderedDict': OrderedDict,
+                'dict': dict,
+                'list': list,
+                'tuple': tuple
+            }
+            parsed = eval(value, {"__builtins__": None}, safe_ns)
+            
+            def convert_to_json_types(obj):
+                if isinstance(obj, OrderedDict) or isinstance(obj, dict):
+                    return {k: convert_to_json_types(v) for k, v in obj.items()}
+                elif isinstance(obj, list) or isinstance(obj, tuple):
+                    return [convert_to_json_types(i) for i in obj]
+                else:
+                    return obj
+            
+            return convert_to_json_types(parsed)
+        except Exception:
+            pass
+
+    # 3. Fallback: try converting python single quote representation to valid JSON
+    try:
+        repr_val = value.replace("'", '"')
+        repr_val = repr_val.replace(': True', ': true').replace(': False', ': false').replace(': None', ': null')
+        repr_val = repr_val.replace(', True', ', true').replace(', False', ', false').replace(', None', ', null')
+        repr_val = repr_val.replace('[True', '[true').replace('[False', '[false').replace('[None', '[null')
+        parsed = json.loads(repr_val)
+        if isinstance(parsed, str):
+            return safe_parse_json(parsed)
+        return parsed
+    except (ValueError, TypeError):
+        pass
+
+    return value
+
 class RegistrationSerializer(serializers.ModelSerializer):
     # Handle ObjectId serialization
     id = serializers.CharField(read_only=True)  # Override the ObjectId field
@@ -25,14 +78,31 @@ class RegistrationSerializer(serializers.ModelSerializer):
         fields = '__all__'
         # Make audit fields read-only since we'll set them programmatically
         read_only_fields = ['id', 'created_by', 'created_date', 'lastmodified_date']
+
+    def to_internal_value(self, data):
+        if hasattr(data, 'copy'):
+            data_copy = data.copy()
+        else:
+            data_copy = dict(data)
+
+        for field in ['age', 'reason_for_visit', 'source_of_referral']:
+            if field in data_copy:
+                data_copy[field] = safe_parse_json(data_copy[field])
+
+        return super().to_internal_value(data_copy)
+
     def to_representation(self, instance):
-        """Custom serialization to handle ObjectId"""
+        """Custom serialization to handle ObjectId and parse stringified JSON fields"""
         data = super().to_representation(instance)
         
         # Convert ObjectId to string if present
         if 'id' in data and data['id'] is not None:
             data['id'] = str(data['id'])
             
+        for field in ['age', 'reason_for_visit', 'source_of_referral']:
+            if field in data:
+                data[field] = safe_parse_json(data[field])
+
         return data
     
     def create(self, validated_data):
@@ -44,9 +114,6 @@ class RegistrationSerializer(serializers.ModelSerializer):
             validated_data['created_by'] = employee_id
             
         return super().create(validated_data)
-
-from rest_framework import serializers
-from .models import EmployeeRegistration
 
 class EmployeeRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -63,15 +130,31 @@ class PatientAssessmentSerializer(serializers.ModelSerializer):
         fields = '__all__'
         # Make audit fields read-only since we'll set them programmatically
         read_only_fields = ['id', 'created_by', 'created_date', 'lastmodified_date']
+
+    def to_internal_value(self, data):
+        if hasattr(data, 'copy'):
+            data_copy = data.copy()
+        else:
+            data_copy = dict(data)
+
+        for field in ['age', 'assessments']:
+            if field in data_copy:
+                data_copy[field] = safe_parse_json(data_copy[field])
+
+        return super().to_internal_value(data_copy)
     
     def to_representation(self, instance):
-        """Custom serialization to handle ObjectId"""
+        """Custom serialization to handle ObjectId and parse stringified JSON fields"""
         data = super().to_representation(instance)
         
         # Convert ObjectId to string if present
         if 'id' in data and data['id'] is not None:
             data['id'] = str(data['id'])
             
+        for field in ['age', 'assessments']:
+            if field in data:
+                data[field] = safe_parse_json(data[field])
+
         return data
     
     def create(self, validated_data):

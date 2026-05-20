@@ -1,3 +1,4 @@
+import json
 from ..serializers import RegistrationSerializer
 from ..models import Registration, PatientAssessment
 from rest_framework.response import Response
@@ -13,6 +14,58 @@ from pyauth.auth import HasRolePermission
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
+
+def safe_parse_json(value):
+    if not isinstance(value, str):
+        return value
+    
+    # 1. Try standard JSON parsing
+    try:
+        parsed = json.loads(value)
+        if isinstance(parsed, str):
+            return safe_parse_json(parsed)
+        return parsed
+    except (ValueError, TypeError):
+        pass
+
+    # 2. Try handling Python representation strings (e.g. OrderedDict, python dicts/lists)
+    if 'OrderedDict' in value or 'dict' in value or '(' in value or '[' in value:
+        from collections import OrderedDict
+        try:
+            safe_ns = {
+                'OrderedDict': OrderedDict,
+                'dict': dict,
+                'list': list,
+                'tuple': tuple
+            }
+            parsed = eval(value, {"__builtins__": None}, safe_ns)
+            
+            def convert_to_json_types(obj):
+                if isinstance(obj, OrderedDict) or isinstance(obj, dict):
+                    return {k: convert_to_json_types(v) for k, v in obj.items()}
+                elif isinstance(obj, list) or isinstance(obj, tuple):
+                    return [convert_to_json_types(i) for i in obj]
+                else:
+                    return obj
+            
+            return convert_to_json_types(parsed)
+        except Exception:
+            pass
+
+    # 3. Fallback: try converting python single quote representation to valid JSON
+    try:
+        repr_val = value.replace("'", '"')
+        repr_val = repr_val.replace(': True', ': true').replace(': False', ': false').replace(': None', ': null')
+        repr_val = repr_val.replace(', True', ', true').replace(', False', ', false').replace(', None', ', null')
+        repr_val = repr_val.replace('[True', '[true').replace('[False', '[false').replace('[None', '[null')
+        parsed = json.loads(repr_val)
+        if isinstance(parsed, str):
+            return safe_parse_json(parsed)
+        return parsed
+    except (ValueError, TypeError):
+        pass
+
+    return value
 from dateutil.relativedelta import relativedelta
 from django.shortcuts import get_object_or_404
 from pymongo import DESCENDING, MongoClient
@@ -86,7 +139,10 @@ def update_registration(request, registration_number):
         excluded_fields = ['_id', 'created_at', 'lastmodified_date', 'lastmodified_by', 'registration_number']
         for key, value in request.data.items():
             if key not in excluded_fields:
-                update_data[key] = value
+                if key in ['age', 'reason_for_visit', 'source_of_referral']:
+                    update_data[key] = safe_parse_json(value)
+                else:
+                    update_data[key] = value
         
         # Add audit fields
         update_data['lastmodified_date'] = datetime.now()
@@ -273,7 +329,7 @@ def get_patient_by_registration(request, prefix, id, year):
         patient = Registration.objects.get(registration_number=registration_number)
         return JsonResponse({
             "name_of_child": patient.name_of_child,
-            "age": patient.age,
+            "age": safe_parse_json(patient.age),
             "sex": patient.sex,
             # other fields...
         })

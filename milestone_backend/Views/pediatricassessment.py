@@ -41,8 +41,7 @@ def CreateHistoryRecordingSheet(request):
     if request.method == 'POST':
         serializer = HistoryRecordingSheetSerializer(data=request.data)
         if serializer.is_valid():
-            created_by=employee_id,
-            serializer.save()
+            serializer.save(created_by=employee_id)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -112,8 +111,7 @@ def UpdateHistoryRecordingSheet(request):
     )
 
     if serializer.is_valid():
-        lastmodified_by=employee_id
-        serializer.save()
+        serializer.save(lastmodified_by=employee_id,lastmodified_date=timezone.now())
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

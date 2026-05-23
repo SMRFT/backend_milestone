@@ -37,9 +37,11 @@ else:
 @api_view(['POST'])
 @permission_classes([HasRolePermission])
 def CreateHistoryRecordingSheet(request):
+    employee_id = request.data.get("auth-user-id")
     if request.method == 'POST':
         serializer = HistoryRecordingSheetSerializer(data=request.data)
         if serializer.is_valid():
+            created_by=employee_id,
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -90,6 +92,7 @@ def GetHistoryRecordingSheetbyRegNO(request):
 @permission_classes([HasRolePermission])
 def UpdateHistoryRecordingSheet(request):
     registration_number = request.data.get("registration_number")
+    employee_id = request.data.get("auth-user-id")
 
     if not registration_number:
         return Response(
@@ -109,6 +112,7 @@ def UpdateHistoryRecordingSheet(request):
     )
 
     if serializer.is_valid():
+        lastmodified_by=employee_id
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
 

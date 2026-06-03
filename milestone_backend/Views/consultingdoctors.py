@@ -147,5 +147,14 @@ def update_consulting_doctor(request, employee_id):
 @permission_classes([HasRolePermission])
 @csrf_exempt
 def get_consulting_doctors(request):
-    doctors = ConsultingDoctor.objects.all().values()
-    return JsonResponse(list(doctors), safe=False)
+    doctors = list(ConsultingDoctor.objects.all().values())
+    from milestone_backend.serializers import get_employee_details
+    for doc in doctors:
+        emp_id = doc.get('employee_id')
+        if emp_id:
+            emp_details = get_employee_details(emp_id)
+            doc['qualification'] = emp_details.get('created_by_qualification') or ""
+            doc['designation'] = emp_details.get('created_by_designation') or doc.get('designation') or ""
+        else:
+            doc['qualification'] = ""
+    return JsonResponse(doctors, safe=False)

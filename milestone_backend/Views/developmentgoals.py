@@ -67,11 +67,37 @@ def development_goals_list_create(request):
 
     # GET logic
     reg_number = request.query_params.get('registration_number')
+    month_param = request.query_params.get('month')  # e.g., "2026-06", "06", or "6"
+    year_param = request.query_params.get('year')    # e.g., "2026"
+
+    qs = DevelopmentGoals.objects.all()
     if reg_number:
-        qs = DevelopmentGoals.objects.filter(registration_number=reg_number).order_by('-date')
-    else:
-        qs = DevelopmentGoals.objects.all().order_by('-date')
-        
+        qs = qs.filter(registration_number=reg_number)
+
+    if month_param:
+        try:
+            if '-' in month_param:
+                parts = month_param.split('-')
+                if len(parts) >= 2:
+                    y = int(parts[0])
+                    m = int(parts[1])
+                else:
+                    y = timezone.now().year
+                    m = int(parts[0])
+            else:
+                m = int(month_param)
+                y = int(year_param) if year_param else timezone.now().year
+
+            if 1 <= m <= 12:
+                # Calculate first and last days of the month
+                first_day = datetime(y, m, 1).date()
+                last_day = datetime(y, m, calendar.monthrange(y, m)[1]).date()
+                qs = qs.filter(date__range=(first_day, last_day))
+        except Exception as e:
+            # Fallback or log if parsing fails
+            print("Month filter parse error:", e)
+
+    qs = qs.order_by('-date')
     serializer = DevelopmentGoalsSerializer(qs, many=True)
     return Response(serializer.data)
 

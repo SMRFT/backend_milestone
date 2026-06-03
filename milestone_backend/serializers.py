@@ -69,6 +69,35 @@ def safe_parse_json(value):
 
     return value
 
+class SafeJsonFieldsMixin:
+    json_fields = []
+
+    def to_internal_value(self, data):
+        if hasattr(data, 'copy'):
+            data_copy = data.copy()
+        else:
+            data_copy = dict(data)
+
+        for field in self.json_fields:
+            if field in data_copy:
+                data_copy[field] = safe_parse_json(data_copy[field])
+
+        return super().to_internal_value(data_copy)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Convert ObjectId to string if present
+        if 'id' in data and data['id'] is not None:
+            data['id'] = str(data['id'])
+        if '_id' in data and data['_id'] is not None:
+            data['_id'] = str(data['_id'])
+            
+        for field in self.json_fields:
+            if field in data:
+                data[field] = safe_parse_json(data[field])
+
+        return data
+
 class RegistrationSerializer(serializers.ModelSerializer):
     # Handle ObjectId serialization
     id = serializers.CharField(read_only=True)  # Override the ObjectId field
@@ -167,8 +196,10 @@ class PatientAssessmentSerializer(serializers.ModelSerializer):
             
         return super().create(validated_data)
 
-class PediatricAssessmentSerializer(serializers.ModelSerializer):
+class PediatricAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
     id = ObjectIdField(read_only=True)
+    json_fields = ['age', 'developmental_history']
+    
     class Meta:
        
         model = PediatricAssessment
@@ -287,12 +318,14 @@ class TherapyBillingSerializer(serializers.ModelSerializer):
             return RegistrationSerializer(patient).data
         return None
     
-class OthersBillingSerializer(serializers.ModelSerializer):
+class OthersBillingSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
     date = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", required=False)
     id = serializers.SerializerMethodField()  # Convert ObjectId to string
 
     def get_id(self, obj):
         return str(obj.id) if isinstance(obj.id, ObjectId) else obj.id
+
+    json_fields = ['age', 'others_items']
 
     class Meta:
         model = OthersBilling
@@ -313,7 +346,8 @@ class OthersBillingSerializer(serializers.ModelSerializer):
 from rest_framework import serializers
 from .models import MCHATResponse
 
-class MCHATResponseSerializer(serializers.ModelSerializer):
+class MCHATResponseSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
+    json_fields = ['age', 'question']
     class Meta:
         model = MCHATResponse
         fields = ['registration_number','patient_name', 'age', 'sex', 'question', 'score','riskLevel']
@@ -347,7 +381,8 @@ class ConsultingDoctorSerializer(serializers.ModelSerializer):
 from rest_framework import serializers
 from .models import ChildLanguageAssessment
 
-class ChildLanguageAssessmentSerializer(serializers.ModelSerializer):
+class ChildLanguageAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
+    json_fields = ['natalhistory', 'developmentalhistory', 'socialemotionalbehavior', 'prerequisitesforspeech', 'oralperipheralmechanism', 'vegetativeskills', 'communicationprofile']
     class Meta:
         model = ChildLanguageAssessment
         fields = '__all__'
@@ -357,7 +392,8 @@ class ChildLanguageAssessmentSerializer(serializers.ModelSerializer):
 from rest_framework import serializers
 from .models import DevelopmentalScreeningTask
 
-class DevelopmentalScreeningTaskSerializer(serializers.ModelSerializer):
+class DevelopmentalScreeningTaskSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
+    json_fields = ['tasks']
     class Meta:
         model = DevelopmentalScreeningTask
         fields = '__all__'
@@ -366,8 +402,9 @@ from rest_framework import serializers
 from .models import CBCL
 from bson import ObjectId  # Import to handle MongoDB ObjectId
 
-class CBCLSerializer(serializers.ModelSerializer):
+class CBCLSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
     id = serializers.SerializerMethodField()  # Add this field
+    json_fields = ['age', 'table1', 'table2', 'table3', 'table4', 'table5', 'table6', 'table7']
 
     class Meta:
         model = CBCL
@@ -401,52 +438,416 @@ class PatientAttendanceSerializer(serializers.ModelSerializer):
 from rest_framework import serializers
 from .models import HistoryRecordingSheet
 
-class HistoryRecordingSheetSerializer(serializers.ModelSerializer):
+def get_demographics_by_registration(registration_number, ref_date=None):
+    demographics = {
+        "dob": "—",
+        "father": "—",
+        "mother": "—",
+        "mobile": "—",
+        "address": "—",
+        "age": "—"
+    }
+    if not registration_number:
+        return demographics
+    try:
+        from .models import Registration
+        patient = Registration.objects.filter(registration_number=registration_number).first()
+        if patient:
+            if patient.dob:
+                if hasattr(patient.dob, 'strftime'):
+                    demographics["dob"] = patient.dob.strftime('%Y-%m-%d')
+                else:
+                    demographics["dob"] = str(patient.dob)
+            else:
+                demographics["dob"] = "—"
+                
+            demographics["father"] = patient.father_name or "—"
+            demographics["mother"] = patient.mother_name or "—"
+            
+            mobile = patient.father_phone_number or patient.mother_phone_number
+            if not mobile and hasattr(patient, 'phone_number'):
+                mobile = patient.phone_number
+            demographics["mobile"] = mobile or "—"
+            
+            demographics["address"] = patient.address or "—"
+            
+            # Calculate/format age
+            if patient.dob and ref_date:
+                from datetime import datetime, date
+                try:
+                    dob = patient.dob
+                    if isinstance(dob, str):
+                        dob = datetime.strptime(dob.split('T')[0], '%Y-%m-%d').date()
+                    elif isinstance(dob, datetime):
+                        dob = dob.date()
+                    
+                    target_date = ref_date
+                    if isinstance(target_date, str):
+                        target_date = datetime.strptime(target_date.split('T')[0], '%Y-%m-%d').date()
+                    elif isinstance(target_date, datetime):
+                        target_date = target_date.date()
+                    
+                    years = target_date.year - dob.year - ((target_date.month, target_date.day) < (dob.month, dob.day))
+                    if target_date.day >= dob.day:
+                        months = target_date.month - dob.month
+                    else:
+                        months = target_date.month - dob.month - 1
+                    if months < 0:
+                        months += 12
+                    
+                    parts = []
+                    if years > 0:
+                        parts.append(f"{years} Years")
+                    if months > 0:
+                        parts.append(f"{months} Months")
+                    demographics["age"] = " ".join(parts) if parts else "0 Months"
+                except Exception as e:
+                    print("Error calculating age:", e)
+            
+            if demographics["age"] == "—" and patient.age:
+                age_val = patient.age
+                if isinstance(age_val, str):
+                    try:
+                        import json
+                        age_val = json.loads(age_val)
+                    except:
+                        pass
+                if isinstance(age_val, dict):
+                    parts = []
+                    year = age_val.get("year") or age_val.get("years")
+                    if year is not None:
+                        parts.append(f"{year} Years")
+                    month = age_val.get("months") or age_val.get("month")
+                    if month is not None:
+                        parts.append(f"{month} Months")
+                    if parts:
+                        demographics["age"] = " ".join(parts)
+                    else:
+                        demographics["age"] = str(age_val)
+                else:
+                    demographics["age"] = str(age_val)
+    except Exception as e:
+        print(f"Error fetching demographics for registration {registration_number}: {e}")
+    return demographics
+
+
+def get_employee_details(employee_id):
+    details = {
+        "created_by_name": "Ms. Sivashankari",
+        "created_by_qualification": "M.sc Clinical Psychology, B.sc PJCS",
+        "created_by_designation": ""
+    }
+    if not employee_id:
+        return details
+    try:
+        import os
+        import certifi
+        from pymongo import MongoClient
+        env_type = os.environ.get("ENV_CLASSIFICATION", "local")
+        mongo_uri = os.environ.get("GLOBAL_DB_HOST")
+        
+        client = MongoClient(mongo_uri)
+            
+        db = client["Global"]
+        col = db["backend_diagnostics_profile"]
+        
+        doc = col.find_one({"employeeId": str(employee_id)})
+        if doc:
+            # Name
+            name = doc.get("employeeName") or ""
+            name = name.strip()
+            gender = (doc.get("gender") or "").strip().lower()
+            if name and not any(name.startswith(p) for p in ["Ms. ", "Mrs. ", "Mr. ", "Dr. "]):
+                if gender == "female":
+                    name = f"Ms. {name}"
+                elif gender == "male":
+                    name = f"Mr. {name}"
+            if name:
+                details["created_by_name"] = name
+            
+            # Qualifications
+            quals = doc.get("qualifications") or []
+            qual_list = []
+            if isinstance(quals, list):
+                for q in quals:
+                    if isinstance(q, dict) and q.get("degree"):
+                        qual_list.append(q["degree"].strip())
+            if qual_list:
+                details["created_by_qualification"] = ", ".join(qual_list)
+            
+            # Designation
+            des_code = doc.get("designation")
+            if des_code:
+                des_col = db["backend_diagnostics_Designation"]
+                des_doc = des_col.find_one({"Designation_code": str(des_code).strip()})
+                if des_doc and des_doc.get("designation"):
+                    details["created_by_designation"] = des_doc["designation"].strip()
+    except Exception as e:
+        print(f"Error fetching employee details for empid {employee_id}: {e}")
+    return details
+
+
+class HistoryRecordingSheetSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
     id = ObjectIdField(read_only=True)
+    json_fields = ['identification_data', 'demographic_data', 'presenting_complaints', 'history_of_present_illness', 'family_history', 'personal_history', 'natalandneanatal_history', 'postnatal_history', 'developmental_history', 'scholastic_history', 'play_history', 'general_history']
     class Meta:
         model = HistoryRecordingSheet
         fields =  '__all__' 
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        reg_num = data.get("registration_number")
+        
+        demo = get_demographics_by_registration(reg_num)
+        
+        # Identification data fallback
+        id_data = data.get("identification_data") or {}
+        if isinstance(id_data, str):
+            try:
+                import json
+                id_data = json.loads(id_data)
+            except:
+                id_data = {}
+        
+        from .models import Registration
+        if not id_data.get("name") or id_data.get("name") == "N/A":
+            try:
+                patient = Registration.objects.filter(registration_number=reg_num).first()
+                if patient:
+                    id_data["name"] = patient.name_of_child
+            except:
+                pass
+        
+        if not id_data.get("dob") or id_data.get("dob") == "—" or id_data.get("dob") == "N/A":
+            id_data["dob"] = demo.get("dob") or "—"
+            
+        if not id_data.get("age_sex") or id_data.get("age_sex") == "—" or id_data.get("age_sex") == "N/A":
+            age_str = demo.get("age") or "—"
+            sex_str = "—"
+            try:
+                patient = Registration.objects.filter(registration_number=reg_num).first()
+                if patient:
+                    sex_str = patient.sex
+            except:
+                pass
+            id_data["age_sex"] = f"{age_str} / {sex_str}" if sex_str != "—" else age_str
+        
+        data["identification_data"] = id_data
+        
+        # Demographic data fallback
+        demo_data = data.get("demographic_data") or {}
+        if isinstance(demo_data, str):
+            try:
+                import json
+                demo_data = json.loads(demo_data)
+            except:
+                demo_data = {}
+        
+        if not demo_data.get("father") or demo_data.get("father") == "—" or demo_data.get("father") == "N/A":
+            demo_data["father"] = demo.get("father") or "—"
+        if not demo_data.get("mother") or demo_data.get("mother") == "—" or demo_data.get("mother") == "N/A":
+            demo_data["mother"] = demo.get("mother") or "—"
+        if not demo_data.get("mobile_number") or demo_data.get("mobile_number") == "—" or demo_data.get("mobile_number") == "N/A":
+            demo_data["mobile_number"] = demo.get("mobile") or "—"
+        if not demo_data.get("address_city") or demo_data.get("address_city") == "—" or demo_data.get("address_city") == "N/A":
+            demo_data["address_city"] = demo.get("address") or "—"
+            
+        data["demographic_data"] = demo_data
+        
+        # Signature info
+        created_by = data.get("created_by")
+        emp_details = get_employee_details(created_by)
+        data["created_by_name"] = emp_details.get("created_by_name")
+        data["created_by_qualification"] = emp_details.get("created_by_qualification")
+        data["created_by_designation"] = emp_details.get("created_by_designation") or "Clinical Director / Psychologist"
+        return data
+
 from .models import ClinicalPsychologyAssessment
-class ClinicalPsychologyAssessmentSerializer(serializers.ModelSerializer):
+class ClinicalPsychologyAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
     id = ObjectIdField(read_only=True)
+    json_fields = ['behaviour_problems', 'general_temperament', 'behavioral_observation', 'assessments_used']
     class Meta:
         model = ClinicalPsychologyAssessment
         fields = "__all__"
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        reg_num = data.get("registrationNumber")
+        assessment_date = data.get("assessment_date")
+        demo = get_demographics_by_registration(reg_num, ref_date=assessment_date)
+        
+        for field in ["dob", "father", "mother", "mobile", "address", "age"]:
+            if not data.get(field) or data.get(field) == "—" or data.get(field) == "N/A":
+                data[field] = demo.get(field, "—")
+        
+        if not data.get("patientName") or data.get("patientName") == "N/A":
+            try:
+                from .models import Registration
+                patient = Registration.objects.filter(registration_number=reg_num).first()
+                if patient:
+                    data["patientName"] = patient.name_of_child
+            except:
+                pass
+                
+        created_by = data.get("created_by")
+        emp_details = get_employee_details(created_by)
+        data["created_by_name"] = emp_details.get("created_by_name")
+        data["created_by_qualification"] = emp_details.get("created_by_qualification")
+        data["created_by_designation"] = emp_details.get("created_by_designation") or "Psychologist"
+        return data
+
 from .models import OccupationalTherapyAssessment
-class OccupationalTherapyAssessmentSerializer(serializers.ModelSerializer):
+class OccupationalTherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
     id = ObjectIdField(read_only=True)
+    json_fields = ['motor_skills', 'handwriting_skills', 'cognitive_concepts', 'visual_perceptual_skills', 'sensory_evaluation', 'adl_evaluation', 'assessments_used']
     class Meta:
         model = OccupationalTherapyAssessment
         fields = "__all__"
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        reg_num = data.get("registrationNumber")
+        assessment_date = data.get("assessment_date")
+        demo = get_demographics_by_registration(reg_num, ref_date=assessment_date)
+        
+        for field in ["dob", "father", "mother", "mobile", "address", "age"]:
+            if not data.get(field) or data.get(field) == "—" or data.get(field) == "N/A":
+                data[field] = demo.get(field, "—")
+        
+        if not data.get("patientName") or data.get("patientName") == "N/A":
+            try:
+                from .models import Registration
+                patient = Registration.objects.filter(registration_number=reg_num).first()
+                if patient:
+                    data["patientName"] = patient.name_of_child
+            except:
+                pass
+                
+        created_by = data.get("created_by")
+        emp_details = get_employee_details(created_by)
+        data["created_by_name"] = emp_details.get("created_by_name")
+        data["created_by_qualification"] = emp_details.get("created_by_qualification")
+        data["created_by_designation"] = emp_details.get("created_by_designation") or "Occupational Therapist"
+        return data
+
 from .models import SpeechTherapyAssessment
-class SpeechTherapyAssessmentSerializer(serializers.ModelSerializer):
+class SpeechTherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
     id = ObjectIdField(read_only=True)
+    json_fields = ['oral_peripheral_mechanism', 'vegetative_skills', 'speech_parameters', 'communication_profile', 'linguistic_profile', 'assessments_used']
     class Meta:
         model = SpeechTherapyAssessment
         fields = "__all__"
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        reg_num = data.get("registrationNumber")
+        assessment_date = data.get("assessment_date")
+        demo = get_demographics_by_registration(reg_num, ref_date=assessment_date)
+        
+        for field in ["dob", "father", "mother", "mobile", "address", "age"]:
+            if not data.get(field) or data.get(field) == "—" or data.get(field) == "N/A":
+                data[field] = demo.get(field, "—")
+        
+        if not data.get("patientName") or data.get("patientName") == "N/A":
+            try:
+                from .models import Registration
+                patient = Registration.objects.filter(registration_number=reg_num).first()
+                if patient:
+                    data["patientName"] = patient.name_of_child
+            except:
+                pass
+                
+        created_by = data.get("created_by")
+        emp_details = get_employee_details(created_by)
+        data["created_by_name"] = emp_details.get("created_by_name")
+        data["created_by_qualification"] = emp_details.get("created_by_qualification")
+        data["created_by_designation"] = emp_details.get("created_by_designation") or "Speech Therapist"
+        return data
+
 from .models import PhysiotherapyAssessment
-class PhysiotherapyAssessmentSerializer(serializers.ModelSerializer):
+class PhysiotherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
     id = ObjectIdField(read_only=True)
+    json_fields = ['on_observation', 'tone', 'motor_system', 'clonus', 'coordination', 'pattern_and_position', 'limb_length_discrepancy', 'balance', 'sensation', 'assessments_used']
     class Meta:
         model = PhysiotherapyAssessment
         fields = "__all__"
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        reg_num = data.get("registrationNumber")
+        assessment_date = data.get("assessment_date")
+        demo = get_demographics_by_registration(reg_num, ref_date=assessment_date)
+        
+        for field in ["dob", "father", "mother", "mobile", "address", "age"]:
+            if not data.get(field) or data.get(field) == "—" or data.get(field) == "N/A":
+                data[field] = demo.get(field, "—")
+        
+        if not data.get("patientName") or data.get("patientName") == "N/A":
+            try:
+                from .models import Registration
+                patient = Registration.objects.filter(registration_number=reg_num).first()
+                if patient:
+                    data["patientName"] = patient.name_of_child
+            except:
+                pass
+                
+        created_by = data.get("created_by")
+        emp_details = get_employee_details(created_by)
+        data["created_by_name"] = emp_details.get("created_by_name")
+        data["created_by_qualification"] = emp_details.get("created_by_qualification")
+        data["created_by_designation"] = emp_details.get("created_by_designation") or "Physiotherapist"
+        return data
         
 from .models import AssessmentAnalysis
-class AssessmentAnalysisSerializer(serializers.ModelSerializer):
+class AssessmentAnalysisSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
     id = ObjectIdField(read_only=True)
+    json_fields = ['preferred_language', 'mapping_therapy', 'session_numbers', 'therapy_methods']
     class Meta:
         model = AssessmentAnalysis
         fields = "__all__"
 
-class GoalsAssessmentSerializer(serializers.ModelSerializer):
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        reg_num = data.get("registration_number")
+        ref_date = data.get("date")
+        demo = get_demographics_by_registration(reg_num, ref_date=ref_date)
+        
+        if not data.get("age") or data.get("age") == "—" or data.get("age") == "N/A":
+            data["age"] = demo.get("age", "—")
+        if not data.get("patient_name") or data.get("patient_name") == "N/A":
+            try:
+                from .models import Registration
+                patient = Registration.objects.filter(registration_number=reg_num).first()
+                if patient:
+                    data["patient_name"] = patient.name_of_child
+            except:
+                pass
+                
+        created_by = data.get("created_by")
+        emp_details = get_employee_details(created_by)
+        data["created_by_name"] = emp_details.get("created_by_name")
+        data["created_by_qualification"] = emp_details.get("created_by_qualification")
+        data["created_by_designation"] = emp_details.get("created_by_designation") or "Clinical Director / Psychologist"
+        return data
+
+class GoalsAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
     id = ObjectIdField(source='_id', read_only=True)
+    patient_details = serializers.SerializerMethodField()
+    json_fields = ['goals', 'goalsphoto', 'goalsvideo']
+
     class Meta:
         model = GoalsAssessment
         fields = '__all__'
+
+    def get_patient_details(self, obj):
+        try:
+            from .models import Registration
+            patient = Registration.objects.filter(registration_number=obj.registration_number).first()
+            if patient:
+                return RegistrationSerializer(patient).data
+        except Exception as e:
+            print("Error fetching patient details in GoalsAssessmentSerializer:", e)
+        return None
 
 # Mapping to expected name in Views/leave.py
 class LeaveFormSerializer(serializers.ModelSerializer):
@@ -455,10 +856,11 @@ class LeaveFormSerializer(serializers.ModelSerializer):
         model = leaveform
         fields = '__all__'
 
-class DevelopmentGoalsSerializer(serializers.ModelSerializer):
+class DevelopmentGoalsSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
     id = ObjectIdField(source='_id', read_only=True)
     goals = serializers.SerializerMethodField()
     registration_details = serializers.SerializerMethodField()
+    json_fields = ['development_goals']
     
     class Meta:
         model = DevelopmentGoals
@@ -468,17 +870,62 @@ class DevelopmentGoalsSerializer(serializers.ModelSerializer):
             'lastmodified_by', 'lastmodified_date'
         ]
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        
+        reg_num = data.get("registration_number")
+        ref_date = data.get("date")
+        demo = get_demographics_by_registration(reg_num, ref_date=ref_date)
+        
+        data["dob"] = demo.get("dob", "—")
+        data["father"] = demo.get("father", "—")
+        data["mother"] = demo.get("mother", "—")
+        data["mobile"] = demo.get("mobile", "—")
+        data["address"] = demo.get("address", "—")
+        data["age_str"] = demo.get("age", "—")
+        
+        created_by = data.get("created_by")
+        emp_details = get_employee_details(created_by)
+        data["created_by_name"] = emp_details.get("created_by_name")
+        data["created_by_qualification"] = emp_details.get("created_by_qualification")
+        data["created_by_designation"] = emp_details.get("created_by_designation") or "Psychologist"
+        
+        return data
+
     def get_goals(self, obj):
         data = obj.development_goals
         if isinstance(data, str):
             try:
                 import json
-                return json.loads(data)
+                goals = json.loads(data)
             except:
-                return []
-        if isinstance(data, list):
-            return data
-        return []
+                goals = []
+        elif isinstance(data, list):
+            goals = data
+        else:
+            goals = []
+
+        if isinstance(goals, list) and len(goals) > 0:
+            try:
+                from .models import GoalDomain
+                all_domains = list(GoalDomain.objects.all())
+                domains = {d.domain_no: d.name for d in all_domains if d.domain_no}
+                domains_by_id = {str(d._id): d.name for d in all_domains if d._id}
+                
+                import copy
+                goals = copy.deepcopy(goals)
+
+                for g in goals:
+                    if isinstance(g, dict) and 'domain' in g:
+                        domain_val = g.get('domain')
+                        if domain_val in domains:
+                            g['domain'] = domains[domain_val]
+                        elif domain_val in domains_by_id:
+                            g['domain'] = domains_by_id[domain_val]
+            except Exception as e:
+                print(f"Error mapping domain names: {e}")
+
+        return goals
 
     def get_registration_details(self, obj):
         try:
@@ -538,24 +985,36 @@ class TherapyDetailsSerializer(serializers.ModelSerializer):
         model = TherapyDetails
         fields = ['id', 'therapy_name']
 
+class GoalDomainListSerializer(serializers.ListSerializer):
+    def to_representation(self, data):
+        therapies_map = {str(t.pk): t.therapy_name for t in TherapyDetails.objects.all()}
+        self.context['therapies_map'] = therapies_map
+        return super().to_representation(data)
+
 class GoalDomainSerializer(serializers.ModelSerializer):
     id = ObjectIdField(source='_id', read_only=True)
     therapy_type_name = serializers.SerializerMethodField()
     class Meta:
+        list_serializer_class = GoalDomainListSerializer
         model = GoalDomain
         fields = ['id', 'name', 'therapy_type', 'therapy_type_name', 'domain_no']
     
     def get_therapy_type_name(self, obj):
+        val = str(obj.therapy_type or "")
+        if not val: return "N/A"
+        
+        therapies_map = self.context.get('therapies_map')
+        if therapies_map is not None:
+            return therapies_map.get(val, val)
+
         try:
             from bson import ObjectId
-            # Use TherapyDetails instead of GoalTherapyType
-            t = TherapyDetails.objects.get(_id=ObjectId(obj.therapy_type))
+            t = TherapyDetails.objects.get(_id=ObjectId(val))
             return t.therapy_name
-        except: return "N/A"
+        except: return val
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        # Force these to be strings
         if 'therapy_type' in data: data['therapy_type'] = str(data['therapy_type'])
         return data
 
@@ -565,6 +1024,25 @@ class GoalLevelSerializer(serializers.ModelSerializer):
         model = GoalLevel
         fields = ['id', 'name']
 
+class GoalLibraryListSerializer(serializers.ListSerializer):
+    def to_representation(self, data):
+        therapies_map = {str(t.pk): t.therapy_name for t in TherapyDetails.objects.all()}
+        
+        domains_map_by_id = {}
+        domains_map_by_no = {}
+        for d in GoalDomain.objects.all():
+            domains_map_by_id[str(d.pk)] = d
+            domains_map_by_no[d.domain_no] = d
+
+        levels_map = {str(l.pk): l.name for l in GoalLevel.objects.all()}
+
+        self.context['therapies_map'] = therapies_map
+        self.context['domains_map_by_id'] = domains_map_by_id
+        self.context['domains_map_by_no'] = domains_map_by_no
+        self.context['levels_map'] = levels_map
+
+        return super().to_representation(data)
+
 class GoalLibrarySerializer(serializers.ModelSerializer):
     id = ObjectIdField(source='_id', read_only=True)
     therapy_type_name = serializers.SerializerMethodField()
@@ -573,12 +1051,18 @@ class GoalLibrarySerializer(serializers.ModelSerializer):
     level_name = serializers.SerializerMethodField()
     
     class Meta:
+        list_serializer_class = GoalLibraryListSerializer
         model = GoalLibrary
         fields = ['id', 'goal_name', 'goal_no', 'domain', 'domain_name', 'domain_no', 'therapy_type', 'therapy_type_name', 'level', 'level_name']
 
     def get_therapy_type_name(self, obj):
         val = str(obj.therapy_type or "")
         if not val: return "N/A"
+        
+        therapies_map = self.context.get('therapies_map')
+        if therapies_map is not None:
+            return therapies_map.get(val, val)
+
         if len(val) != 24: return val
         try:
             from bson import ObjectId
@@ -589,26 +1073,61 @@ class GoalLibrarySerializer(serializers.ModelSerializer):
     def get_domain_name(self, obj):
         val = str(obj.domain or "")
         if not val: return "N/A"
-        if len(val) != 24: return val
+        
+        domains_map_by_id = self.context.get('domains_map_by_id')
+        domains_map_by_no = self.context.get('domains_map_by_no')
+        if domains_map_by_id is not None and domains_map_by_no is not None:
+            d = domains_map_by_id.get(val) or domains_map_by_no.get(val)
+            if d: return d.name
+            return val
+
         try:
-            from bson import ObjectId
-            d = GoalDomain.objects.get(_id=ObjectId(val))
+            d = GoalDomain.objects.get(domain_no=val)
             return d.name
-        except: return val
+        except:
+            pass
+        if len(val) == 24:
+            try:
+                from bson import ObjectId
+                d = GoalDomain.objects.get(_id=ObjectId(val))
+                return d.name
+            except:
+                pass
+        return val
 
     def get_domain_no(self, obj):
         val = str(obj.domain or "")
         if not val: return "N/A"
-        if len(val) != 24: return val
+
+        domains_map_by_id = self.context.get('domains_map_by_id')
+        domains_map_by_no = self.context.get('domains_map_by_no')
+        if domains_map_by_id is not None and domains_map_by_no is not None:
+            d = domains_map_by_id.get(val) or domains_map_by_no.get(val)
+            if d: return d.domain_no
+            return val
+
+        if len(val) == 24:
+            try:
+                from bson import ObjectId
+                d = GoalDomain.objects.get(_id=ObjectId(val))
+                return d.domain_no
+            except:
+                pass
         try:
-            from bson import ObjectId
-            d = GoalDomain.objects.get(_id=ObjectId(val))
+            d = GoalDomain.objects.get(domain_no=val)
             return d.domain_no
-        except: return val
+        except:
+            pass
+        return val
 
     def get_level_name(self, obj):
         val = str(obj.level or "")
         if not val: return "-"
+
+        levels_map = self.context.get('levels_map')
+        if levels_map is not None:
+            return levels_map.get(val, val)
+
         if len(val) != 24: return val
         try:
             from bson import ObjectId

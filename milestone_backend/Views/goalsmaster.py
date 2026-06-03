@@ -1,3 +1,4 @@
+from bson import ObjectId
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
@@ -27,15 +28,34 @@ def therapy_type_list_create(request):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(["DELETE"])
+@api_view(["GET", "PATCH", "DELETE"])
 # @permission_classes([HasRolePermission])
 def therapy_type_detail(request, pk):
     try:
-        instance = TherapyDetails.objects.get(pk=pk)
+        instance = TherapyDetails.objects.get(_id=ObjectId(pk))
+    except (TherapyDetails.DoesNotExist, Exception):
+        try:
+            instance = TherapyDetails.objects.get(pk=pk)
+        except TherapyDetails.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == "GET":
+        serializer = TherapyDetailsSerializer(instance)
+        return Response(serializer.data)
+
+    elif request.method == "PATCH":
+        serializer = TherapyDetailsSerializer(instance, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save(
+                lastmodified_by=request.data.get('auth-user-id'),
+                lastmodified_date=timezone.now()
+            )
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == "DELETE":
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
-    except TherapyDetails.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
 
 # --- Domains ---
 @api_view(["GET", "POST"])
@@ -57,15 +77,34 @@ def domain_list_create(request):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(["DELETE"])
+@api_view(["GET", "PATCH", "DELETE"])
 # @permission_classes([HasRolePermission])
 def domain_detail(request, pk):
     try:
-        instance = GoalDomain.objects.get(pk=pk)
+        instance = GoalDomain.objects.get(_id=ObjectId(pk))
+    except (GoalDomain.DoesNotExist, Exception):
+        try:
+            instance = GoalDomain.objects.get(pk=pk)
+        except GoalDomain.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == "GET":
+        serializer = GoalDomainSerializer(instance)
+        return Response(serializer.data)
+
+    elif request.method == "PATCH":
+        serializer = GoalDomainSerializer(instance, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save(
+                lastmodified_by=request.data.get('auth-user-id'),
+                lastmodified_date=timezone.now()
+            )
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == "DELETE":
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
-    except GoalDomain.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
 
 # --- Levels ---
 @api_view(["GET", "POST"])
@@ -83,15 +122,34 @@ def level_list_create(request):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(["DELETE"])
+@api_view(["GET", "PATCH", "DELETE"])
 # @permission_classes([HasRolePermission])
 def level_detail(request, pk):
     try:
-        instance = GoalLevel.objects.get(pk=pk)
+        instance = GoalLevel.objects.get(_id=ObjectId(pk))
+    except (GoalLevel.DoesNotExist, Exception):
+        try:
+            instance = GoalLevel.objects.get(pk=pk)
+        except GoalLevel.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == "GET":
+        serializer = GoalLevelSerializer(instance)
+        return Response(serializer.data)
+
+    elif request.method == "PATCH":
+        serializer = GoalLevelSerializer(instance, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save(
+                lastmodified_by=request.data.get('auth-user-id'),
+                lastmodified_date=timezone.now()
+            )
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == "DELETE":
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
-    except GoalLevel.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
 
 # --- Goal Library ---
 @api_view(["GET", "POST"])
@@ -115,12 +173,34 @@ def goal_library_list_create(request):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(["DELETE"])
+@api_view(["GET", "PATCH", "DELETE"])
 # @permission_classes([HasRolePermission])
 def goal_library_detail(request, pk):
     try:
-        instance = GoalLibrary.objects.get(pk=pk)
+        instance = GoalLibrary.objects.get(_id=ObjectId(pk))
+    except (GoalLibrary.DoesNotExist, Exception):
+        try:
+            instance = GoalLibrary.objects.get(pk=pk)
+        except GoalLibrary.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == "GET":
+        serializer = GoalLibrarySerializer(instance)
+        return Response(serializer.data)
+
+    elif request.method == "PATCH":
+        serializer = GoalLibrarySerializer(instance, data=request.data, partial=True)
+        if serializer.is_valid():
+            # Reset goal_no on edit if domain changed so it regenerates automatically
+            if 'domain' in request.data and request.data['domain'] != instance.domain:
+                instance.goal_no = ""
+            serializer.save(
+                lastmodified_by=request.data.get('auth-user-id'),
+                lastmodified_date=timezone.now()
+            )
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == "DELETE":
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
-    except GoalLibrary.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)

@@ -148,6 +148,32 @@ def goals_assessment_list_create(request):
 
     # ---------------- LIST ----------------
     qs = GoalsAssessment.objects.all()
+    
+    from_date = request.query_params.get("from_date")
+    to_date = request.query_params.get("to_date")
+    date_param = request.query_params.get("date")
+
+    if from_date or to_date:
+        if from_date:
+            try:
+                parsed_from = datetime.strptime(from_date, "%Y-%m-%d").date()
+                qs = qs.filter(date__gte=parsed_from)
+            except ValueError:
+                pass
+        if to_date:
+            try:
+                parsed_to = datetime.strptime(to_date, "%Y-%m-%d").date()
+                qs = qs.filter(date__lte=parsed_to)
+            except ValueError:
+                pass
+    elif date_param:
+        try:
+            parsed_date = datetime.strptime(date_param, "%Y-%m-%d").date()
+            qs = qs.filter(date=parsed_date)
+        except ValueError:
+            pass
+            
+    qs = qs.order_by("-date")
     serializer = GoalsAssessmentSerializer(qs, many=True)
     return Response(serializer.data)
 

@@ -29,7 +29,7 @@ def therapy_type_list_create(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(["GET", "PATCH", "DELETE"])
-# @permission_classes([HasRolePermission])
+@permission_classes([HasRolePermission])
 def therapy_type_detail(request, pk):
     try:
         instance = TherapyDetails.objects.get(_id=ObjectId(pk))
@@ -59,7 +59,7 @@ def therapy_type_detail(request, pk):
 
 # --- Domains ---
 @api_view(["GET", "POST"])
-# @permission_classes([HasRolePermission])
+@permission_classes([HasRolePermission])
 def domain_list_create(request):
     if request.method == "GET":
         therapy_id = request.query_params.get('therapy_type')
@@ -78,7 +78,7 @@ def domain_list_create(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(["GET", "PATCH", "DELETE"])
-# @permission_classes([HasRolePermission])
+@permission_classes([HasRolePermission])
 def domain_detail(request, pk):
     try:
         instance = GoalDomain.objects.get(_id=ObjectId(pk))
@@ -108,7 +108,7 @@ def domain_detail(request, pk):
 
 # --- Levels ---
 @api_view(["GET", "POST"])
-# @permission_classes([HasRolePermission])
+@permission_classes([HasRolePermission])
 def level_list_create(request):
     if request.method == "GET":
         qs = GoalLevel.objects.all()
@@ -123,7 +123,7 @@ def level_list_create(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(["GET", "PATCH", "DELETE"])
-# @permission_classes([HasRolePermission])
+@permission_classes([HasRolePermission])
 def level_detail(request, pk):
     try:
         instance = GoalLevel.objects.get(_id=ObjectId(pk))
@@ -153,15 +153,19 @@ def level_detail(request, pk):
 
 # --- Goal Library ---
 @api_view(["GET", "POST"])
-# @permission_classes([HasRolePermission])
+@permission_classes([HasRolePermission])
 def goal_library_list_create(request):
     if request.method == "GET":
         domain_id = request.query_params.get('domain')
         therapy_id = request.query_params.get('therapy_type')
+        is_custom = request.query_params.get('is_custom')
         
         qs = GoalLibrary.objects.all()
         if domain_id: qs = qs.filter(domain=domain_id)
         if therapy_id: qs = qs.filter(therapy_type=therapy_id)
+        if is_custom is not None:
+            is_custom_bool = is_custom.lower() in ['true', '1']
+            qs = qs.filter(is_custom__in=[is_custom_bool])
             
         serializer = GoalLibrarySerializer(qs, many=True)
         return Response(serializer.data)
@@ -174,7 +178,7 @@ def goal_library_list_create(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(["GET", "PATCH", "DELETE"])
-# @permission_classes([HasRolePermission])
+@permission_classes([HasRolePermission])
 def goal_library_detail(request, pk):
     try:
         instance = GoalLibrary.objects.get(_id=ObjectId(pk))

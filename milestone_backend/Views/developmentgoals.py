@@ -9,7 +9,7 @@ from pyauth.auth import HasRolePermission
 import calendar
 
 @api_view(["POST", "GET"])
-# @permission_classes([HasRolePermission])
+@permission_classes([HasRolePermission])
 def development_goals_list_create(request):
     employee_id = request.data.get('auth-user-id')
 
@@ -102,7 +102,7 @@ def development_goals_list_create(request):
     return Response(serializer.data)
 
 @api_view(["GET", "PUT", "PATCH", "DELETE"])
-# @permission_classes([HasRolePermission])
+@permission_classes([HasRolePermission])
 def development_goals_detail(request, pk):
     try:
         instance = DevelopmentGoals.objects.get(pk=pk)

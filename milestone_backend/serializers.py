@@ -907,23 +907,62 @@ class DevelopmentGoalsSerializer(SafeJsonFieldsMixin, serializers.ModelSerialize
 
         if isinstance(goals, list) and len(goals) > 0:
             try:
-                from .models import GoalDomain
+                from .models import GoalDomain, TherapyDetails, GoalLevel
+                
+                # Fetch and index domains
                 all_domains = list(GoalDomain.objects.all())
                 domains = {d.domain_no: d.name for d in all_domains if d.domain_no}
                 domains_by_id = {str(d._id): d.name for d in all_domains if d._id}
+                domains_by_name = {d.name: d.name for d in all_domains if d.name}
                 
+                # Fetch and index therapies
+                all_therapies = list(TherapyDetails.objects.all())
+                therapies = {t.therapy_id: t.therapy_name for t in all_therapies if t.therapy_id}
+                therapies_by_id = {str(t._id): t.therapy_name for t in all_therapies if t._id}
+                therapies_by_name = {t.therapy_name: t.therapy_name for t in all_therapies if t.therapy_name}
+                
+                # Fetch and index levels
+                all_levels = list(GoalLevel.objects.all())
+                levels = {l.level_id: l.name for l in all_levels if l.level_id}
+                levels_by_id = {str(l._id): l.name for l in all_levels if l._id}
+                levels_by_name = {l.name: l.name for l in all_levels if l.name}
+
                 import copy
                 goals = copy.deepcopy(goals)
 
                 for g in goals:
-                    if isinstance(g, dict) and 'domain' in g:
-                        domain_val = g.get('domain')
-                        if domain_val in domains:
-                            g['domain'] = domains[domain_val]
-                        elif domain_val in domains_by_id:
-                            g['domain'] = domains_by_id[domain_val]
+                    if isinstance(g, dict):
+                        # Map Domain
+                        if 'domain' in g:
+                            domain_val = g.get('domain')
+                            if domain_val in domains:
+                                g['domain'] = domains[domain_val]
+                            elif domain_val in domains_by_id:
+                                g['domain'] = domains_by_id[domain_val]
+                            elif domain_val in domains_by_name:
+                                g['domain'] = domains_by_name[domain_val]
+                                
+                        # Map Therapy
+                        if 'therapy' in g:
+                            therapy_val = g.get('therapy')
+                            if therapy_val in therapies:
+                                g['therapy'] = therapies[therapy_val]
+                            elif therapy_val in therapies_by_id:
+                                g['therapy'] = therapies_by_id[therapy_val]
+                            elif therapy_val in therapies_by_name:
+                                g['therapy'] = therapies_by_name[therapy_val]
+                                
+                        # Map Level
+                        if 'level' in g:
+                            level_val = g.get('level')
+                            if level_val in levels:
+                                g['level'] = levels[level_val]
+                            elif level_val in levels_by_id:
+                                g['level'] = levels_by_id[level_val]
+                            elif level_val in levels_by_name:
+                                g['level'] = levels_by_name[level_val]
             except Exception as e:
-                print(f"Error mapping domain names: {e}")
+                print(f"Error mapping goals IDs to names: {e}")
 
         return goals
 
@@ -983,7 +1022,7 @@ class TherapyDetailsSerializer(serializers.ModelSerializer):
     id = ObjectIdField(source='_id', read_only=True)
     class Meta:
         model = TherapyDetails
-        fields = ['id', 'therapy_name']
+        fields = ['id', 'therapy_name', 'therapy_id']
 
 class GoalDomainListSerializer(serializers.ListSerializer):
     def to_representation(self, data):
@@ -1022,23 +1061,34 @@ class GoalLevelSerializer(serializers.ModelSerializer):
     id = ObjectIdField(source='_id', read_only=True)
     class Meta:
         model = GoalLevel
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'level_id']
 
 class GoalLibraryListSerializer(serializers.ListSerializer):
     def to_representation(self, data):
-        therapies_map = {str(t.pk): t.therapy_name for t in TherapyDetails.objects.all()}
-        
+        therapies_map = {}
+        for t in TherapyDetails.objects.all():
+            therapies_map[str(t.pk)] = t.therapy_name
+            therapies_map[t.therapy_id] = t.therapy_name
+            therapies_map[t.therapy_name] = t.therapy_name
+            
         domains_map_by_id = {}
         domains_map_by_no = {}
+        domains_map_by_name = {}
         for d in GoalDomain.objects.all():
             domains_map_by_id[str(d.pk)] = d
             domains_map_by_no[d.domain_no] = d
+            domains_map_by_name[d.name] = d
 
-        levels_map = {str(l.pk): l.name for l in GoalLevel.objects.all()}
+        levels_map = {}
+        for l in GoalLevel.objects.all():
+            levels_map[str(l.pk)] = l.name
+            levels_map[l.level_id] = l.name
+            levels_map[l.name] = l.name
 
         self.context['therapies_map'] = therapies_map
         self.context['domains_map_by_id'] = domains_map_by_id
         self.context['domains_map_by_no'] = domains_map_by_no
+        self.context['domains_map_by_name'] = domains_map_by_name
         self.context['levels_map'] = levels_map
 
         return super().to_representation(data)
@@ -1053,7 +1103,7 @@ class GoalLibrarySerializer(serializers.ModelSerializer):
     class Meta:
         list_serializer_class = GoalLibraryListSerializer
         model = GoalLibrary
-        fields = ['id', 'goal_name', 'goal_no', 'domain', 'domain_name', 'domain_no', 'therapy_type', 'therapy_type_name', 'level', 'level_name']
+        fields = ['id', 'goal_name', 'goal_no', 'domain', 'domain_name', 'domain_no', 'therapy_type', 'therapy_type_name', 'level', 'level_name', 'is_custom']
 
     def get_therapy_type_name(self, obj):
         val = str(obj.therapy_type or "")
@@ -1063,12 +1113,24 @@ class GoalLibrarySerializer(serializers.ModelSerializer):
         if therapies_map is not None:
             return therapies_map.get(val, val)
 
-        if len(val) != 24: return val
         try:
-            from bson import ObjectId
-            t = TherapyDetails.objects.get(_id=ObjectId(val))
+            t = TherapyDetails.objects.get(therapy_id=val)
             return t.therapy_name
-        except: return val
+        except: pass
+
+        if len(val) == 24:
+            try:
+                from bson import ObjectId
+                t = TherapyDetails.objects.get(_id=ObjectId(val))
+                return t.therapy_name
+            except: pass
+            
+        try:
+            t = TherapyDetails.objects.get(therapy_name=val)
+            return t.therapy_name
+        except: pass
+
+        return val
 
     def get_domain_name(self, obj):
         val = str(obj.domain or "")
@@ -1076,23 +1138,30 @@ class GoalLibrarySerializer(serializers.ModelSerializer):
         
         domains_map_by_id = self.context.get('domains_map_by_id')
         domains_map_by_no = self.context.get('domains_map_by_no')
-        if domains_map_by_id is not None and domains_map_by_no is not None:
-            d = domains_map_by_id.get(val) or domains_map_by_no.get(val)
+        domains_map_by_name = self.context.get('domains_map_by_name')
+        
+        if domains_map_by_id is not None and domains_map_by_no is not None and domains_map_by_name is not None:
+            d = domains_map_by_id.get(val) or domains_map_by_no.get(val) or domains_map_by_name.get(val)
             if d: return d.name
             return val
 
         try:
             d = GoalDomain.objects.get(domain_no=val)
             return d.name
-        except:
-            pass
+        except: pass
+
         if len(val) == 24:
             try:
                 from bson import ObjectId
                 d = GoalDomain.objects.get(_id=ObjectId(val))
                 return d.name
-            except:
-                pass
+            except: pass
+
+        try:
+            d = GoalDomain.objects.get(name=val)
+            return d.name
+        except: pass
+
         return val
 
     def get_domain_no(self, obj):
@@ -1101,23 +1170,30 @@ class GoalLibrarySerializer(serializers.ModelSerializer):
 
         domains_map_by_id = self.context.get('domains_map_by_id')
         domains_map_by_no = self.context.get('domains_map_by_no')
-        if domains_map_by_id is not None and domains_map_by_no is not None:
-            d = domains_map_by_id.get(val) or domains_map_by_no.get(val)
+        domains_map_by_name = self.context.get('domains_map_by_name')
+        
+        if domains_map_by_id is not None and domains_map_by_no is not None and domains_map_by_name is not None:
+            d = domains_map_by_id.get(val) or domains_map_by_no.get(val) or domains_map_by_name.get(val)
             if d: return d.domain_no
             return val
+
+        try:
+            d = GoalDomain.objects.get(domain_no=val)
+            return d.domain_no
+        except: pass
 
         if len(val) == 24:
             try:
                 from bson import ObjectId
                 d = GoalDomain.objects.get(_id=ObjectId(val))
                 return d.domain_no
-            except:
-                pass
+            except: pass
+
         try:
-            d = GoalDomain.objects.get(domain_no=val)
+            d = GoalDomain.objects.get(name=val)
             return d.domain_no
-        except:
-            pass
+        except: pass
+
         return val
 
     def get_level_name(self, obj):
@@ -1128,12 +1204,24 @@ class GoalLibrarySerializer(serializers.ModelSerializer):
         if levels_map is not None:
             return levels_map.get(val, val)
 
-        if len(val) != 24: return val
         try:
-            from bson import ObjectId
-            l = GoalLevel.objects.get(_id=ObjectId(val))
+            l = GoalLevel.objects.get(level_id=val)
             return l.name
-        except: return val
+        except: pass
+
+        if len(val) == 24:
+            try:
+                from bson import ObjectId
+                l = GoalLevel.objects.get(_id=ObjectId(val))
+                return l.name
+            except: pass
+
+        try:
+            l = GoalLevel.objects.get(name=val)
+            return l.name
+        except: pass
+
+        return val
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

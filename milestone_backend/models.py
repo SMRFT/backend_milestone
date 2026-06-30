@@ -503,9 +503,48 @@ class DevelopmentGoals(AuditModel):
     def __str__(self):
         return f"{self.registration_number} - {self.date}"
 
+def get_therapy_abbreviation(therapy_name):
+    if not therapy_name:
+        return "GN"
+    name = str(therapy_name).lower().strip()
+    if "occupational" in name or "ot" in name:
+        return "OT"
+    elif "cognitive" in name or "ct" in name:
+        return "CT"
+    elif "speech" in name or "st" in name:
+        return "ST"
+    elif "physio" in name or "pt" in name:
+        return "PT"
+    elif "art therapy" in name or "at" in name:
+        return "AT"
+    elif "early intervention" in name or "ei" in name:
+        return "EI"
+    elif "applied behavior" in name or "aba" in name:
+        return "AT"
+    elif "special education" in name:
+        return "SE"
+    elif "social training" in name:
+        return "SC"
+    elif "curriculum" in name:
+        return "CC"
+    elif "group therapy" in name:
+        return "GT"
+    else:
+        words = name.split()
+        if len(words) >= 2:
+            return "".join(w[0].upper() for w in words[:2])
+        return name[:2].upper()
+
 class TherapyDetails(AuditModel):
     _id = models.ObjectIdField()
     therapy_name = models.CharField(max_length=255)
+    therapy_id = models.CharField(max_length=10, blank=True)
+    
+    def save(self, *args, **kwargs):
+        if not self.therapy_id:
+            count = TherapyDetails.objects.count()
+            self.therapy_id = f"THP{count+1:03d}"
+        super().save(*args, **kwargs)
     
     class Meta:
         db_table = "milestone_backend_therapydetails"
@@ -520,13 +559,17 @@ class GoalDomain(AuditModel):
         if not self.domain_no:
             try:
                 from bson import ObjectId
-                therapy = TherapyDetails.objects.get(_id=ObjectId(self.therapy_type))
-                prefix = therapy.therapy_name[:2].upper()
+                if len(self.therapy_type) == 24:
+                    therapy = TherapyDetails.objects.get(_id=ObjectId(self.therapy_type))
+                    therapy_name = therapy.therapy_name
+                else:
+                    therapy_name = self.therapy_type
             except:
-                prefix = "GN"
+                therapy_name = self.therapy_type
                 
+            prefix = get_therapy_abbreviation(therapy_name)
             count = GoalDomain.objects.filter(therapy_type=self.therapy_type).count()
-            self.domain_no = f"D-{prefix}-{count+1:03}"
+            self.domain_no = f"{prefix}{count+1:03d}"
         super().save(*args, **kwargs)
 
     def __str__(self): return self.name
@@ -534,6 +577,14 @@ class GoalDomain(AuditModel):
 class GoalLevel(AuditModel):
     _id = models.ObjectIdField()
     name = models.CharField(max_length=50) 
+    level_id = models.CharField(max_length=10, blank=True)
+
+    def save(self, *args, **kwargs):
+        if not self.level_id:
+            count = GoalLevel.objects.count()
+            self.level_id = f"LVL{count+1:02d}"
+        super().save(*args, **kwargs)
+
     def __str__(self): return self.name
 
 class GoalLibrary(AuditModel):
@@ -543,26 +594,87 @@ class GoalLibrary(AuditModel):
     domain = models.CharField(max_length=100) # Storing ID as string
     therapy_type = models.CharField(max_length=100) # Storing ID as string
     level = models.CharField(max_length=100, blank=True, null=True) # Storing ID as string
+    is_custom = models.BooleanField(default=False)
     
     def save(self, *args, **kwargs):
-        if not self.goal_no:
-            prefix = "G"
-            try:
-                from bson import ObjectId
-                # Try lookup by ObjectId first (backward compatibility)
-                if len(self.domain) == 24: 
+        from bson import ObjectId
+
+        # 1. Normalize therapy_type to therapy_id
+        if self.therapy_type:
+            therapy_obj = None
+            if len(self.therapy_type) == 24:
+                try:
+                    therapy_obj = TherapyDetails.objects.get(_id=ObjectId(self.therapy_type))
+                except: pass
+            if not therapy_obj:
+                try:
+                    therapy_obj = TherapyDetails.objects.get(therapy_id=self.therapy_type)
+                except: pass
+            if not therapy_obj:
+                try:
+                    therapy_obj = TherapyDetails.objects.get(therapy_name=self.therapy_type)
+                except: pass
+            if therapy_obj:
+                self.therapy_type = therapy_obj.therapy_id
+
+        # 2. Normalize domain to domain_no
+        if self.domain:
+            domain_obj = None
+            if len(self.domain) == 24:
+                try:
                     domain_obj = GoalDomain.objects.get(_id=ObjectId(self.domain))
-                    prefix = domain_obj.domain_no
-                else: 
-                    # Use domain_no directly if it was saved as name/no
-                    prefix = self.domain
+                except: pass
+            if not domain_obj:
+                try:
+                    domain_obj = GoalDomain.objects.get(domain_no=self.domain)
+                except: pass
+            if not domain_obj:
+                try:
+                    domain_obj = GoalDomain.objects.filter(name=self.domain, therapy_type=self.therapy_type).first()
+                except: pass
+            if not domain_obj:
+                try:
+                    domain_obj = GoalDomain.objects.filter(name=self.domain).first()
+                except: pass
+            if domain_obj:
+                self.domain = domain_obj.domain_no
+
+        # 3. Normalize level to level_id
+        if self.level:
+            level_obj = None
+            if len(self.level) == 24:
+                try:
+                    level_obj = GoalLevel.objects.get(_id=ObjectId(self.level))
+                except: pass
+            if not level_obj:
+                try:
+                    level_obj = GoalLevel.objects.get(level_id=self.level)
+                except: pass
+            if not level_obj:
+                try:
+                    level_obj = GoalLevel.objects.get(name=self.level)
+                except: pass
+            if level_obj:
+                self.level = level_obj.level_id
+
+        # 4. Generate goal_no if empty
+        if not self.goal_no:
+            try:
+                if len(self.therapy_type) == 24:
+                    therapy = TherapyDetails.objects.get(_id=ObjectId(self.therapy_type))
+                    therapy_name = therapy.therapy_name
+                elif self.therapy_type.startswith("THP"):
+                    therapy = TherapyDetails.objects.get(therapy_id=self.therapy_type)
+                    therapy_name = therapy.therapy_name
+                else:
+                    therapy_name = self.therapy_type
             except:
-                prefix = self.domain or "G"
+                therapy_name = self.therapy_type
                 
-            count = GoalLibrary.objects.filter(domain=self.domain).count()
-            # Clean prefix if it contains spaces or special characters
-            prefix_clean = str(prefix).split('(')[0].strip()
-            self.goal_no = f"G-{prefix_clean}-{count+1:03}"
+            prefix = get_therapy_abbreviation(therapy_name)
+            count = GoalLibrary.objects.filter(therapy_type=self.therapy_type).count()
+            self.goal_no = f"{prefix}GL{count+1:04d}"
+            
         super().save(*args, **kwargs)
 
     def __str__(self): return self.goal_name

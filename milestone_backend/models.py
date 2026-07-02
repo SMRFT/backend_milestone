@@ -741,9 +741,12 @@ class AppointmentSchedule(AuditModel):
     appointment_id = models.IntegerField(primary_key=True, editable=False)
     date = models.DateField(default=date.today)
     name_of_child = models.CharField(max_length=255)
+    mother_name = models.CharField(max_length=255, blank=True, null=True)
+    father_name = models.CharField(max_length=255, blank=True, null=True)
+    mobile_number = models.CharField(max_length=20, blank=True, null=True)
     therapist_id = models.CharField(max_length=100)
     rescheduled_therapist_id = models.CharField(max_length=100, blank=True, null=True)
-    registration_number = models.CharField(max_length=100)
+    registration_number = models.CharField(max_length=100,blank=True, null=True)
     appointment_datetime = models.DateTimeField()
     slot_start_time = models.TimeField()
     slot_end_time = models.TimeField()
@@ -754,7 +757,7 @@ class AppointmentSchedule(AuditModel):
     cancelled_datetime = models.DateTimeField(blank=True, null=True)
 
     def save(self, *args, **kwargs):
-        # :white_check_mark: Auto increment logic (hardened against non-int types from Mongo)
+        # ✅ Auto increment logic (hardened against non-int types from Mongo)
         if not self.appointment_id:
             last = AppointmentSchedule.objects.order_by('-appointment_id').first()
             last_id = 0

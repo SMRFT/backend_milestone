@@ -55,18 +55,18 @@ PAGE_MAPPING = {
     r'^/_b_a_c_k_e_n_d/Milestone/assessment-analysis/?(\?.*)?$':'MDC-P-AAU',
 
     # Goals
-    '/_b_a_c_k_e_n_d/Milestone/goals/':'MDC-API-AT',
-    r'^/_b_a_c_k_e_n_d/Milestone/goals/.*$':'MDC-API-AT',
-    '/_b_a_c_k_e_n_d/Milestone/development-goals/':'MDC-API-AT',
-    r'^/_b_a_c_k_e_n_d/Milestone/development-goals/.*$':'MDC-API-AT',
-    '/_b_a_c_k_e_n_d/Milestone/goal-therapy-types/':'MDC-API-AT',
-    r'^/_b_a_c_k_e_n_d/Milestone/goal-therapy-types/.*$':'MDC-API-AT',
-    '/_b_a_c_k_e_n_d/Milestone/goal-domains/':'MDC-API-AT',
-    r'^/_b_a_c_k_e_n_d/Milestone/goal-domains/.*$':'MDC-API-AT',
-    '/_b_a_c_k_e_n_d/Milestone/goal-levels/':'MDC-API-AT',
-    r'^/_b_a_c_k_e_n_d/Milestone/goal-levels/.*$':'MDC-API-AT',
-    '/_b_a_c_k_e_n_d/Milestone/goal-libraries/':'MDC-API-AT',
-    r'^/_b_a_c_k_e_n_d/Milestone/goal-libraries/.*$':'MDC-API-AT',
+    '/_b_a_c_k_e_n_d/Milestone/goals/':'MDC-P-GOA',
+    r'^/_b_a_c_k_e_n_d/Milestone/goals/.*$':'MDC-P-GOA',
+    '/_b_a_c_k_e_n_d/Milestone/development-goals/':'MDC-P-GOA',
+    r'^/_b_a_c_k_e_n_d/Milestone/development-goals/.*$':'MDC-P-GOA',
+    '/_b_a_c_k_e_n_d/Milestone/goal-therapy-types/':'MDC-P-GOA',
+    r'^/_b_a_c_k_e_n_d/Milestone/goal-therapy-types/.*$':'MDC-P-GOA',
+    '/_b_a_c_k_e_n_d/Milestone/goal-domains/':'MDC-P-GOA',
+    r'^/_b_a_c_k_e_n_d/Milestone/goal-domains/.*$':'MDC-P-GOA',
+    '/_b_a_c_k_e_n_d/Milestone/goal-levels/':'MDC-P-GOA',
+    r'^/_b_a_c_k_e_n_d/Milestone/goal-levels/.*$':'MDC-P-GOA',
+    '/_b_a_c_k_e_n_d/Milestone/goal-libraries/':'MDC-P-GOA',
+    r'^/_b_a_c_k_e_n_d/Milestone/goal-libraries/.*$':'MDC-P-GOA',
 
     '/_b_a_c_k_e_n_d/Milestone/all-assessments/':'',
     '/_b_a_c_k_e_n_d/Milestone/login/':'',
@@ -90,10 +90,29 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/get-cbcl/<str:childName>/':'',
     '/_b_a_c_k_e_n_d/Milestone/oldtherapy-reports/?(\?.*)?$':'MDC-API-THR',
 
-    '/_b_a_c_k_e_n_d/Milestone/submit-leave/':'',
-    '/_b_a_c_k_e_n_d/Milestone/get-pending-leaves/':'',
-    '/_b_a_c_k_e_n_d/Milestone/update-leave-status/':'',
-    r'^/_b_a_c_k_e_n_d/Milestone/get-leaves-report/?(\?.*)?$':'',
+    #Leave Management
+
+    '/_b_a_c_k_e_n_d/Milestone/submit-leave/':'MDC-API-L',
+    '/_b_a_c_k_e_n_d/Milestone/get-pending-leaves/':'MDC-API-L',
+    '/_b_a_c_k_e_n_d/Milestone/update-leave-status/':'MDC-API-L',
+    r'^/_b_a_c_k_e_n_d/Milestone/get-leaves-report/?(\?.*)?$':'MDC-API-L',
+
+    # Session Attendance
+    
+    '/_b_a_c_k_e_n_d/Milestone/session-attendance/load/?(\?.*)?$':'MDC-API-AT',
+    '/_b_a_c_k_e_n_d/Milestone/session-attendance/monthly-report/?(\?.*)?$':'MDC-API-AT',
+    '/_b_a_c_k_e_n_d/Milestone/session-attendance/slots/?(\?.*)?$':'MDC-API-AT',
+    '/_b_a_c_k_e_n_d/Milestone/session-attendance/save/?(\?.*)?$':'MDC-API-AT',
+    '/_b_a_c_k_e_n_d/Milestone/session-attendance/underattended/?(\?.*)?$':'MDC-API-AT',
+
+    #Appoinment Schedule
+
+    '/_b_a_c_k_e_n_d/Milestone/get_dailytimeslot/':'MDC-P-GDTS',
+    '/_b_a_c_k_e_n_d/Milestone/create_appointment/':'MDC-P-CA',
+    '/_b_a_c_k_e_n_d/Milestone/get_all_therapists/':'MDC-P-GAT',
+     r'/_b_a_c_k_e_n_d/Milestone/get_appointments_by_date/?(\?.*)?$':'MDC-P-GAD',
+     '/_b_a_c_k_e_n_d/Milestone/update_appointment_status/':'MDC-P-UAS',
+     r'/_b_a_c_k_e_n_d/Milestone/appointment_dashboard/?(\?.*)?$':'MDC-P-AD',
 
     '/therapy-reports/':'MDC-API-THR',
     '/get_patient_assessments/':'MDC-API-GAS',

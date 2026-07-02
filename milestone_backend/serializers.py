@@ -7,7 +7,7 @@ from .models import (
     CBCL, ConsultingDoctor, PatientAttendance, HistoryRecordingSheet, 
     ClinicalPsychologyAssessment, OccupationalTherapyAssessment, SpeechTherapyAssessment, 
     PhysiotherapyAssessment, AssessmentAnalysis, GoalsAssessment, leaveform, 
-    DevelopmentGoals, TherapyDetails, GoalDomain, GoalLevel, GoalLibrary
+    DevelopmentGoals, TherapyDetails, GoalDomain, GoalLevel, GoalLibrary, AppointmentSchedule
 )
 from djongo.models import ObjectIdField
 
@@ -427,7 +427,7 @@ class ObjectIdField(serializers.Field):
         return ObjectId(data)
 
 from rest_framework import serializers
-from .models import PatientAttendance
+from .models import PatientAttendance, DailyTimeSlot, PatientSessionAttendance
 
 class PatientAttendanceSerializer(serializers.ModelSerializer):
     id = ObjectIdField(read_only=True)
@@ -534,16 +534,14 @@ def get_demographics_by_registration(registration_number, ref_date=None):
 def get_employee_details(employee_id):
     details = {
         "created_by_name": "Ms. Sivashankari",
-        "created_by_qualification": "M.sc Clinical Psychology, B.sc PJCS",
+        "created_by_qualification": "",
         "created_by_designation": ""
     }
     if not employee_id:
         return details
     try:
         import os
-        import certifi
         from pymongo import MongoClient
-        env_type = os.environ.get("ENV_CLASSIFICATION", "local")
         mongo_uri = os.environ.get("GLOBAL_DB_HOST")
         
         client = MongoClient(mongo_uri)
@@ -574,14 +572,55 @@ def get_employee_details(employee_id):
                         qual_list.append(q["degree"].strip())
             if qual_list:
                 details["created_by_qualification"] = ", ".join(qual_list)
+            else:
+                details["created_by_qualification"] = ""
             
-            # Designation
-            des_code = doc.get("designation")
-            if des_code:
-                des_col = db["backend_diagnostics_Designation"]
-                des_doc = des_col.find_one({"Designation_code": str(des_code).strip()})
-                if des_doc and des_doc.get("designation"):
-                    details["created_by_designation"] = des_doc["designation"].strip()
+            # Designation get from milestone_backend_consultingdoctor
+            try:
+                from .models import ConsultingDoctor
+                doc_cd = ConsultingDoctor.objects.filter(employee_id=str(employee_id)).first()
+                if doc_cd and doc_cd.designation:
+                    details["created_by_designation"] = doc_cd.designation.strip()
+            except Exception as e:
+                print(f"Error querying ConsultingDoctor via Django ORM: {e}")
+
+            if not details.get("created_by_designation"):
+                try:
+                    db_milestone = client[os.environ.get("MILESTONE_DB_NAME", "Milestone")]
+                    col_cd = db_milestone["milestone_backend_consultingdoctor"]
+                    doc_cd = col_cd.find_one({"employee_id": str(employee_id)})
+                    if doc_cd and doc_cd.get("designation"):
+                        details["created_by_designation"] = doc_cd["designation"].strip()
+                except Exception as e:
+                    print(f"Error querying milestone_backend_consultingdoctor via PyMongo: {e}")
+        else:
+            # Profile not found, fallback to milestone_backend_consultingdoctor
+            details["created_by_qualification"] = ""
+            details["created_by_designation"] = ""
+            
+            try:
+                from .models import ConsultingDoctor
+                doc_cd = ConsultingDoctor.objects.filter(employee_id=str(employee_id)).first()
+                if doc_cd:
+                    if doc_cd.name:
+                        details["created_by_name"] = doc_cd.name.strip()
+                    if doc_cd.designation:
+                        details["created_by_designation"] = doc_cd.designation.strip()
+            except Exception as e:
+                print(f"Error querying ConsultingDoctor: {e}")
+                
+            if not details.get("created_by_name"):
+                try:
+                    db_milestone = client[os.environ.get("MILESTONE_DB_NAME", "Milestone")]
+                    col_cd = db_milestone["milestone_backend_consultingdoctor"]
+                    doc_cd = col_cd.find_one({"employee_id": str(employee_id)})
+                    if doc_cd:
+                        if doc_cd.get("name"):
+                            details["created_by_name"] = doc_cd["name"].strip()
+                        if doc_cd.get("designation"):
+                            details["created_by_designation"] = doc_cd["designation"].strip()
+                except Exception as e:
+                    print(f"Error querying milestone_backend_consultingdoctor: {e}")
     except Exception as e:
         print(f"Error fetching employee details for empid {employee_id}: {e}")
     return details
@@ -767,7 +806,7 @@ class SpeechTherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSe
 from .models import PhysiotherapyAssessment
 class PhysiotherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
     id = ObjectIdField(read_only=True)
-    json_fields = ['on_observation', 'tone', 'motor_system', 'clonus', 'coordination', 'pattern_and_position', 'limb_length_discrepancy', 'balance', 'sensation', 'assessments_used']
+    json_fields = ['on_observation', 'tone', 'motor_system', 'clonus', 'coordination', 'pattern_and_position', 'limb_length_discrepancy', 'balance', 'sensation', 'assessments_used', 'gross_development', 'reflexes']
     class Meta:
         model = PhysiotherapyAssessment
         fields = "__all__"
@@ -888,7 +927,7 @@ class DevelopmentGoalsSerializer(SafeJsonFieldsMixin, serializers.ModelSerialize
         emp_details = get_employee_details(created_by)
         data["created_by_name"] = emp_details.get("created_by_name")
         data["created_by_qualification"] = emp_details.get("created_by_qualification")
-        data["created_by_designation"] = emp_details.get("created_by_designation") or "Psychologist"
+        data["created_by_designation"] = emp_details.get("created_by_designation") or ""
         
         return data
 
@@ -1026,7 +1065,11 @@ class TherapyDetailsSerializer(serializers.ModelSerializer):
 
 class GoalDomainListSerializer(serializers.ListSerializer):
     def to_representation(self, data):
-        therapies_map = {str(t.pk): t.therapy_name for t in TherapyDetails.objects.all()}
+        therapies_map = {}
+        for t in TherapyDetails.objects.all():
+            therapies_map[str(t.pk)] = t.therapy_name
+            therapies_map[t.therapy_id] = t.therapy_name
+            therapies_map[t.therapy_name] = t.therapy_name
         self.context['therapies_map'] = therapies_map
         return super().to_representation(data)
 
@@ -1048,9 +1091,17 @@ class GoalDomainSerializer(serializers.ModelSerializer):
 
         try:
             from bson import ObjectId
-            t = TherapyDetails.objects.get(_id=ObjectId(val))
+            if len(val) == 24:
+                t = TherapyDetails.objects.get(_id=ObjectId(val))
+            else:
+                t = TherapyDetails.objects.get(therapy_id=val)
             return t.therapy_name
-        except: return val
+        except:
+            try:
+                t = TherapyDetails.objects.get(therapy_name=val)
+                return t.therapy_name
+            except:
+                return val
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -1229,3 +1280,23 @@ class GoalLibrarySerializer(serializers.ModelSerializer):
         if 'domain' in data: data['domain'] = str(data['domain'])
         if 'level' in data: data['level'] = str(data['level'])
         return data
+
+
+class DailyTimeSlotSerializer(serializers.ModelSerializer):
+    id = ObjectIdField(read_only=True)
+    class Meta:
+        model = DailyTimeSlot
+        fields = '__all__'
+
+
+class PatientSessionAttendanceSerializer(serializers.ModelSerializer):
+    id = ObjectIdField(read_only=True)
+    class Meta:
+        model = PatientSessionAttendance
+        fields = '__all__'
+
+class AppointmentScheduleSerializer(serializers.ModelSerializer):
+    id = ObjectIdField(source='_id', read_only=True)
+    class Meta:
+        model = AppointmentSchedule
+        fields = '__all__'

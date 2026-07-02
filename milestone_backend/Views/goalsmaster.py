@@ -64,7 +64,15 @@ def domain_list_create(request):
     if request.method == "GET":
         therapy_id = request.query_params.get('therapy_type')
         if therapy_id:
-            qs = GoalDomain.objects.filter(therapy_type=therapy_id)
+            from django.db.models import Q
+            from bson import ObjectId
+            normalized_therapy_id = therapy_id
+            if len(therapy_id) == 24:
+                try:
+                    therapy_obj = TherapyDetails.objects.get(_id=ObjectId(therapy_id))
+                    normalized_therapy_id = therapy_obj.therapy_id
+                except: pass
+            qs = GoalDomain.objects.filter(Q(therapy_type=normalized_therapy_id) | Q(therapy_type=therapy_id))
         else:
             qs = GoalDomain.objects.all()
         serializer = GoalDomainSerializer(qs, many=True)

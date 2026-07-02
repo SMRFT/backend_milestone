@@ -54,7 +54,8 @@ from milestone_backend.models import DevelopmentalScreeningTask
 def save_developmental_screening_tasks(request):
     if request.method == 'POST':
         data = request.data
-
+        employee_id = data.get("auth-user-id")
+        
         try:
             # Parse the date if it's not already a datetime object
             date_str = data.get('date')
@@ -72,6 +73,8 @@ def save_developmental_screening_tasks(request):
                 dq_classify=data.get('dq_classify', "Nil"),
                 tasks=task_data,
                 date=date,
+                created_by=employee_id, 
+                created_date=timezone.now(),
             )
 
             return Response({"message": "Data saved successfully."}, status=status.HTTP_201_CREATED)

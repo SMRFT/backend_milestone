@@ -1,7 +1,7 @@
 from django.urls import path, re_path
 from . import views 
 from .views import pediatric_assessment_list,get_patients_report
-from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others,pediatricassessment, attendance, Assessment , goals, leave, developmentgoals, goalsmaster
+from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others,pediatricassessment, attendance, Assessment , goals, leave, developmentgoals, goalsmaster, sessionattendance, appoinmentschedule
 
 urlpatterns = [
     path('therapy-reports/', therapybilling.get_therapy_reports, name='therapy-reports'),
@@ -90,6 +90,8 @@ urlpatterns = [
     path("get-pending-leaves/", leave.get_pending_leaves, name="get_pending_leaves"),
     path("update-leave-status/", leave.update_leave_status, name="update_leave_status"),
     path("get-leaves-report/", leave.get_leaves_report, name="get_leaves_report"),
+
+    
     path("development-goals/", developmentgoals.development_goals_list_create, name="development_goals_list_create"),
     path("development-goals/<str:pk>/", developmentgoals.development_goals_detail, name="development_goals_detail"),
 
@@ -102,4 +104,19 @@ urlpatterns = [
     path('goal-levels/<str:pk>/', goalsmaster.level_detail, name='level_detail'),
     path('goal-libraries/', goalsmaster.goal_library_list_create, name='goal_library_list_create'),
     path('goal-libraries/<str:pk>/', goalsmaster.goal_library_detail, name='goal_library_detail'),
+
+    # Session Attendance
+    path('session-attendance/slots/', sessionattendance.get_active_slots, name='session_attendance_slots'),
+    path('session-attendance/load/', sessionattendance.load_session_attendance, name='session_attendance_load'),
+    path('session-attendance/save/', sessionattendance.save_session_attendance, name='session_attendance_save'),
+    path('session-attendance/underattended/', sessionattendance.get_underattended_patients, name='session_attendance_underattended'),
+    path('session-attendance/monthly-report/', sessionattendance.get_monthly_attendance_report, name='session_attendance_monthly_report'),
+
+    #Appoinment Schedule
+    path('get_dailytimeslot/', appoinmentschedule.get_dailytimeslot, name='get_dailytimeslot'),
+    path('create_appointment/', appoinmentschedule.create_appointment, name='create_appointment'),
+    path('get_all_therapists/', appoinmentschedule.get_all_therapists, name='get_all_therapists'),
+    path('get_appointments_by_date/', appoinmentschedule.get_appointments_by_date, name='get_appointments_by_date'),
+    path('update_appointment_status/', appoinmentschedule.update_appointment_status, name='update_appointment_status'),
+    path('appointment_dashboard/', appoinmentschedule.appointment_dashboard, name='appointment_dashboard'),
 ]

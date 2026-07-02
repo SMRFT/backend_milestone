@@ -369,6 +369,7 @@ class ClinicalPsychologyAssessment(AuditModel):
     # Assessment Tests as JSON
     assessments_used = models.JSONField(default=dict, blank=True)
     impression = models.TextField(blank=True)
+    recommendation = models.TextField(blank=True)
     notes = models.TextField(blank=True)
 
     class Meta:
@@ -388,6 +389,7 @@ class OccupationalTherapyAssessment(AuditModel):
     adl_evaluation = models.JSONField(default=dict, blank=True)
     assessments_used = models.JSONField(default=dict, blank=True)
     impression = models.TextField(blank=True)
+    recommendation = models.TextField(blank=True)
     notes = models.TextField(blank=True)
 
     class Meta:
@@ -407,6 +409,7 @@ class SpeechTherapyAssessment(AuditModel):
     linguistic_profile = models.JSONField(default=dict, blank=True)
     assessments_used = models.JSONField(default=dict, blank=True)
     impression = models.TextField(blank=True)
+    recommendation = models.TextField(blank=True)
     notes = models.TextField(blank=True)
 
     class Meta:
@@ -428,7 +431,12 @@ class PhysiotherapyAssessment(AuditModel):
     balance = models.JSONField(default=dict, blank=True)
     sensation = models.JSONField(default=dict, blank=True)
     assessments_used = models.JSONField(default=list, blank=True)
+    gross_development = models.JSONField(default=dict, blank=True)
+    reflexes = models.JSONField(default=dict, blank=True)
     impression = models.TextField(blank=True)
+    short_term_goals = models.TextField(blank=True)
+    long_term_goals = models.TextField(blank=True)
+    recommendation = models.TextField(blank=True)
     notes = models.TextField(blank=True)
 
     class Meta:
@@ -556,17 +564,31 @@ class GoalDomain(AuditModel):
     domain_no = models.CharField(max_length=20, blank=True)
     
     def save(self, *args, **kwargs):
-        if not self.domain_no:
-            try:
-                from bson import ObjectId
-                if len(self.therapy_type) == 24:
-                    therapy = TherapyDetails.objects.get(_id=ObjectId(self.therapy_type))
-                    therapy_name = therapy.therapy_name
-                else:
-                    therapy_name = self.therapy_type
-            except:
+        from bson import ObjectId
+        # Normalize therapy_type to therapy_id
+        if self.therapy_type:
+            therapy_obj = None
+            if len(self.therapy_type) == 24:
+                try:
+                    therapy_obj = TherapyDetails.objects.get(_id=ObjectId(self.therapy_type))
+                except: pass
+            if not therapy_obj:
+                try:
+                    therapy_obj = TherapyDetails.objects.get(therapy_id=self.therapy_type)
+                except: pass
+            if not therapy_obj:
+                try:
+                    therapy_obj = TherapyDetails.objects.get(therapy_name=self.therapy_type)
+                except: pass
+            if therapy_obj:
+                self.therapy_type = therapy_obj.therapy_id
+                therapy_name = therapy_obj.therapy_name
+            else:
                 therapy_name = self.therapy_type
-                
+        else:
+            therapy_name = ""
+
+        if not self.domain_no:
             prefix = get_therapy_abbreviation(therapy_name)
             count = GoalDomain.objects.filter(therapy_type=self.therapy_type).count()
             self.domain_no = f"{prefix}{count+1:03d}"
@@ -679,3 +701,70 @@ class GoalLibrary(AuditModel):
 
     def __str__(self): return self.goal_name
 
+
+class DailyTimeSlot(models.Model):
+    _id = models.ObjectIdField()
+    slot_id = models.CharField(max_length=50, unique=True)
+    label = models.CharField(max_length=100)
+    start_time = models.CharField(max_length=50)
+    end_time = models.CharField(max_length=50)
+    sequence = models.IntegerField()
+    is_break = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'milestone_backend_dailytimeslot'
+
+    def __str__(self):
+        return self.label
+
+
+class PatientSessionAttendance(AuditModel):
+    _id = models.ObjectIdField()
+    registration_number = models.CharField(max_length=50)
+    attendance_date = models.DateField()
+    therapy_id = models.CharField(max_length=50)
+    therapy_name = models.CharField(max_length=150)
+    attended_slot = models.CharField(max_length=50)  # slot_id
+    slot_label = models.CharField(max_length=100)
+    therapist = models.CharField(max_length=50, blank=True, null=True, default='')
+    sessions_attended = models.IntegerField(default=1)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'milestone_backend_patientsessionattendance'
+
+    def __str__(self):
+        return f"{self.registration_number} - {self.therapy_name} - {self.attendance_date}"
+
+class AppointmentSchedule(AuditModel):
+    appointment_id = models.IntegerField(primary_key=True, editable=False)
+    date = models.DateField(default=date.today)
+    name_of_child = models.CharField(max_length=255)
+    therapist_id = models.CharField(max_length=100)
+    rescheduled_therapist_id = models.CharField(max_length=100, blank=True, null=True)
+    registration_number = models.CharField(max_length=100)
+    appointment_datetime = models.DateTimeField()
+    slot_start_time = models.TimeField()
+    slot_end_time = models.TimeField()
+    isactive = models.BooleanField(default=True)
+    status = models.CharField(max_length=200, default="Scheduled")
+    cancel_reason = models.CharField(max_length=500, blank=True, null=True)
+    cancelled_by = models.CharField(max_length=100, blank=True, null=True)
+    cancelled_datetime = models.DateTimeField(blank=True, null=True)
+
+    def save(self, *args, **kwargs):
+        # :white_check_mark: Auto increment logic (hardened against non-int types from Mongo)
+        if not self.appointment_id:
+            last = AppointmentSchedule.objects.order_by('-appointment_id').first()
+            last_id = 0
+            if last and last.appointment_id is not None:
+                try:
+                    last_id = int(last.appointment_id)
+                except (TypeError, ValueError):
+                    last_id = 0
+            self.appointment_id = last_id + 1
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.appointment_id} - {self.name_of_child}"

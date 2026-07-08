@@ -33,6 +33,7 @@ class Registration(AuditModel):
     previous_treatment_done = models.TextField(blank=True, null=True)
     source_of_referral = models.JSONField(blank=True)  # Stores source of referral data as JSON
     registration_number = models.CharField(max_length=20, unique=True, blank=True)
+    appointment_id = models.IntegerField(blank=True, null=True)
     def save(self, *args, **kwargs):
         # Check if registration number is not already set
         if not self.registration_number:
@@ -385,7 +386,7 @@ class OccupationalTherapyAssessment(AuditModel):
     handwriting_skills = models.JSONField(default=dict, blank=True)
     cognitive_concepts = models.JSONField(default=dict, blank=True)
     visual_perceptual_skills = models.JSONField(default=dict, blank=True)
-    sensory_evaluation = models.JSONField(default=dict, blank=True)
+    sensory_profile = models.JSONField(default=dict, blank=True)
     adl_evaluation = models.JSONField(default=dict, blank=True)
     assessments_used = models.JSONField(default=dict, blank=True)
     impression = models.TextField(blank=True)
@@ -547,6 +548,7 @@ class TherapyDetails(AuditModel):
     _id = models.ObjectIdField()
     therapy_name = models.CharField(max_length=255)
     therapy_id = models.CharField(max_length=10, blank=True)
+    color = models.CharField(max_length=50, blank=True, null=True, default="#406147")
     
     def save(self, *args, **kwargs):
         if not self.therapy_id:
@@ -702,6 +704,71 @@ class GoalLibrary(AuditModel):
     def __str__(self): return self.goal_name
 
 
+class ActivityLibrary(AuditModel):
+    _id = models.ObjectIdField()
+    task_name = models.TextField()
+    task_id = models.CharField(max_length=20, blank=True)
+    domain = models.CharField(max_length=100) # Storing ID as string
+    therapy_type = models.CharField(max_length=100) # Storing ID as string
+    is_custom = models.BooleanField(default=False)
+    
+    def save(self, *args, **kwargs):
+        from bson import ObjectId
+
+        # 1. Normalize therapy_type to therapy_id
+        if self.therapy_type:
+            therapy_obj = None
+            if len(self.therapy_type) == 24:
+                try:
+                    therapy_obj = TherapyDetails.objects.get(_id=ObjectId(self.therapy_type))
+                except: pass
+            if not therapy_obj:
+                try:
+                    therapy_obj = TherapyDetails.objects.get(therapy_id=self.therapy_type)
+                except: pass
+            if not therapy_obj:
+                try:
+                    therapy_obj = TherapyDetails.objects.get(therapy_name=self.therapy_type)
+                except: pass
+            if therapy_obj:
+                self.therapy_type = therapy_obj.therapy_id
+
+        # 2. Normalize domain to domain_no
+        if self.domain:
+            domain_obj = None
+            if len(self.domain) == 24:
+                try:
+                    domain_obj = GoalDomain.objects.get(_id=ObjectId(self.domain))
+                except: pass
+            if not domain_obj:
+                try:
+                    domain_obj = GoalDomain.objects.get(domain_no=self.domain)
+                except: pass
+            if not domain_obj:
+                try:
+                    domain_obj = GoalDomain.objects.filter(name=self.domain, therapy_type=self.therapy_type).first()
+                except: pass
+            if not domain_obj:
+                try:
+                    domain_obj = GoalDomain.objects.filter(name=self.domain).first()
+                except: pass
+            if domain_obj:
+                self.domain = domain_obj.domain_no
+
+        # 3. Generate task_id if empty
+        if not self.task_id:
+            count = ActivityLibrary.objects.count()
+            self.task_id = f"ACT{count+1:06d}"
+            
+        super().save(*args, **kwargs)
+
+    def __str__(self): return self.task_name
+
+    class Meta:
+        db_table = "milestone_backend_activitylibrary"
+
+
+
 class DailyTimeSlot(models.Model):
     _id = models.ObjectIdField()
     slot_id = models.CharField(max_length=50, unique=True)
@@ -721,6 +788,7 @@ class DailyTimeSlot(models.Model):
 
 class PatientSessionAttendance(AuditModel):
     _id = models.ObjectIdField()
+    session_id = models.CharField(max_length=50, blank=True, null=True, default='')
     registration_number = models.CharField(max_length=50)
     attendance_date = models.DateField()
     therapy_id = models.CharField(max_length=50)
@@ -734,8 +802,32 @@ class PatientSessionAttendance(AuditModel):
     class Meta:
         db_table = 'milestone_backend_patientsessionattendance'
 
+    def save(self, *args, **kwargs):
+        if not self.session_id:
+            current_year = datetime.datetime.now().year
+            year_part = f"{current_year % 100:03d}"  # 2026 -> 026
+            
+            with transaction.atomic():
+                last_record = PatientSessionAttendance.objects.filter(session_id__isnull=False).order_by('_id').last()
+                if last_record and last_record.session_id and '/' in last_record.session_id:
+                    try:
+                        parts = last_record.session_id.split('/')
+                        seq = int(parts[1])
+                        new_seq = seq + 1
+                    except Exception:
+                        new_seq = PatientSessionAttendance.objects.count() + 1
+                else:
+                    new_seq = PatientSessionAttendance.objects.count() + 1
+                    
+                self.session_id = f"S{year_part}/{new_seq:06d}"
+                
+        super(PatientSessionAttendance, self).save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.registration_number} - {self.therapy_name} - {self.attendance_date}"
+
+from datetime import date
+
 
 class AppointmentSchedule(AuditModel):
     appointment_id = models.IntegerField(primary_key=True, editable=False)
@@ -744,9 +836,11 @@ class AppointmentSchedule(AuditModel):
     mother_name = models.CharField(max_length=255, blank=True, null=True)
     father_name = models.CharField(max_length=255, blank=True, null=True)
     mobile_number = models.CharField(max_length=20, blank=True, null=True)
+    address= models.CharField(max_length=200, blank=True, null=True)
     therapist_id = models.CharField(max_length=100)
     rescheduled_therapist_id = models.CharField(max_length=100, blank=True, null=True)
     registration_number = models.CharField(max_length=100,blank=True, null=True)
+    enquiry_id = models.IntegerField(blank=True, null=True)
     appointment_datetime = models.DateTimeField()
     slot_start_time = models.TimeField()
     slot_end_time = models.TimeField()
@@ -771,3 +865,31 @@ class AppointmentSchedule(AuditModel):
 
     def __str__(self):
         return f"{self.appointment_id} - {self.name_of_child}"
+
+class EnquiryForm(AuditModel):
+    enquiry_id = models.IntegerField(primary_key=True, editable=False)
+    name_of_child = models.CharField(max_length=255)
+    age = models.IntegerField()
+    date = models.DateField(default=date.today)
+    address = models.TextField()
+    problem = models.TextField()
+    mobile_number = models.CharField(max_length=15)
+
+    def save(self, *args, **kwargs):
+        # ✅ Auto increment logic (safe for Mongo / non-int cases)
+        if not self.enquiry_id:
+            last = EnquiryForm.objects.order_by('-enquiry_id').first()
+            last_id = 0
+
+            if last and last.enquiry_id is not None:
+                try:
+                    last_id = int(last.enquiry_id)
+                except (TypeError, ValueError):
+                    last_id = 0
+
+            self.enquiry_id = last_id + 1
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.enquiry_id} - {self.name_of_child}"

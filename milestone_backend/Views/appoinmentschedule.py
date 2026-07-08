@@ -8,8 +8,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
  
-from ..models import AppointmentSchedule
-from ..serializers import AppointmentScheduleSerializer
+from ..models import AppointmentSchedule, EnquiryForm, Registration
+from ..serializers import AppointmentScheduleSerializer, EnquiryFormSerializer
 from .dbcollection import profile_collection
 from datetime import datetime, date as date_cls
 
@@ -482,3 +482,64 @@ def appointment_dashboard(request):
         "summary": summary,
         "data": data,
     })
+
+#########################
+#     Enquiry form      #
+#########################
+
+@api_view(['GET', 'POST'])
+@permission_classes([HasRolePermission])
+def enquiryform(request):
+    """
+    GET  -> list all enquiries, most recent first
+    POST -> create a new enquiry from the "+" Enquiry Form modal
+    """
+    if request.method == 'GET':
+        enquiries = EnquiryForm.objects.order_by('-enquiry_id')
+        serializer = EnquiryFormSerializer(enquiries, many=True)
+        return Response({"data": serializer.data}, status=status.HTTP_200_OK)
+
+    # POST
+    # auth-user-id normally arrives as a header via apiRequest's auto-injection,
+    # but also check request.data in case it's sent in the body — covers both.
+    employee_id = (
+        request.data.get('auth-user-id')
+        or request.headers.get('auth-user-id')
+        or request.META.get('HTTP_AUTH_USER_ID')
+    )
+
+    serializer = EnquiryFormSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save(created_by=employee_id)
+        return Response(
+            {
+                "message": f"Enquiry saved for {serializer.instance.name_of_child}.",
+                "data": serializer.data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+    return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(["GET"])
+@permission_classes([HasRolePermission])
+def search_appointments(request):
+    """
+    GET /search_appointments/?q=<search term>
+    Searches Scheduled/Rescheduled appointments by child name or mobile number
+    """
+    q = request.query_params.get('q', '').strip()
+    
+    # Exclude appointments that have already been registered
+    registered_ids = Registration.objects.filter(appointment_id__isnull=False).values_list('appointment_id', flat=True)
+    qs = AppointmentSchedule.objects.filter(status__in=["Scheduled", "Rescheduled"]).exclude(appointment_id__in=list(registered_ids))
+    
+    if q:
+        qs = qs.filter(
+            Q(name_of_child__icontains=q) | 
+            Q(mobile_number__icontains=q) |
+            Q(father_name__icontains=q) |
+            Q(mother_name__icontains=q)
+        )
+    qs = qs.order_by('-date')[:50]
+    serializer = AppointmentScheduleSerializer(qs, many=True)
+    return Response(serializer.data)

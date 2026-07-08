@@ -110,10 +110,15 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/get_dailytimeslot/':'MDC-P-GDTS',
     '/_b_a_c_k_e_n_d/Milestone/create_appointment/':'MDC-P-CA',
     '/_b_a_c_k_e_n_d/Milestone/get_all_therapists/':'MDC-P-GAT',
-     r'/_b_a_c_k_e_n_d/Milestone/get_appointments_by_date/?(\?.*)?$':'MDC-P-GAD',
-     '/_b_a_c_k_e_n_d/Milestone/update_appointment_status/':'MDC-P-UAS',
-     r'/_b_a_c_k_e_n_d/Milestone/appointment_dashboard/?(\?.*)?$':'MDC-P-AD',
+    r'/_b_a_c_k_e_n_d/Milestone/get_appointments_by_date/?(\?.*)?$':'MDC-P-GAD',
+    '/_b_a_c_k_e_n_d/Milestone/update_appointment_status/':'MDC-P-UAS',
+    r'/_b_a_c_k_e_n_d/Milestone/appointment_dashboard/?(\?.*)?$':'MDC-P-AD',
 
+    #Enquiry form
+    '/_b_a_c_k_e_n_d/Milestone/enquiryform/':'MDC-P-EF',
+    r'/_b_a_c_k_e_n_d/Milestone/search_appointments/?(\?.*)?$':'MDC-P-CA',
+
+    # Therapy
     '/therapy-reports/':'MDC-API-THR',
     '/get_patient_assessments/':'MDC-API-GAS',
     '/others-reports/':'MDC-API-RTS',

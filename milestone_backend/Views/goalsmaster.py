@@ -3,12 +3,13 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
-from ..models import TherapyDetails, GoalDomain, GoalLevel, GoalLibrary
+from ..models import TherapyDetails, GoalDomain, GoalLevel, GoalLibrary, ActivityLibrary
 from ..serializers import (
     TherapyDetailsSerializer, 
     GoalDomainSerializer, 
     GoalLevelSerializer, 
-    GoalLibrarySerializer
+    GoalLibrarySerializer,
+    ActivityLibrarySerializer
 )
 from pyauth.auth import HasRolePermission
 
@@ -216,3 +217,63 @@ def goal_library_detail(request, pk):
     elif request.method == "DELETE":
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# --- Activity Library ---
+@api_view(["GET", "POST"])
+# @permission_classes([HasRolePermission])
+def activity_library_list_create(request):
+    if request.method == "GET":
+        domain_id = request.query_params.get('domain')
+        therapy_id = request.query_params.get('therapy_type')
+        is_custom = request.query_params.get('is_custom')
+        
+        qs = ActivityLibrary.objects.all()
+        if domain_id: qs = qs.filter(domain=domain_id)
+        if therapy_id: qs = qs.filter(therapy_type=therapy_id)
+        if is_custom is not None:
+            is_custom_bool = is_custom.lower() in ['true', '1']
+            qs = qs.filter(is_custom__in=[is_custom_bool])
+            
+        serializer = ActivityLibrarySerializer(qs, many=True)
+        return Response(serializer.data)
+    
+    if request.method == "POST":
+        serializer = ActivityLibrarySerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(created_by=request.data.get('auth-user-id'))
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET", "PATCH", "DELETE"])
+# @permission_classes([HasRolePermission])
+def activity_library_detail(request, pk):
+    try:
+        instance = ActivityLibrary.objects.get(_id=ObjectId(pk))
+    except (ActivityLibrary.DoesNotExist, Exception):
+        try:
+            instance = ActivityLibrary.objects.get(pk=pk)
+        except ActivityLibrary.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == "GET":
+        serializer = ActivityLibrarySerializer(instance)
+        return Response(serializer.data)
+
+    elif request.method == "PATCH":
+        serializer = ActivityLibrarySerializer(instance, data=request.data, partial=True)
+        if serializer.is_valid():
+            if 'domain' in request.data and request.data['domain'] != instance.domain:
+                instance.task_id = ""
+            serializer.save(
+                lastmodified_by=request.data.get('auth-user-id'),
+                lastmodified_date=timezone.now()
+            )
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == "DELETE":
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+

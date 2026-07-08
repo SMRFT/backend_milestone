@@ -7,7 +7,7 @@ from .models import (
     CBCL, ConsultingDoctor, PatientAttendance, HistoryRecordingSheet, 
     ClinicalPsychologyAssessment, OccupationalTherapyAssessment, SpeechTherapyAssessment, 
     PhysiotherapyAssessment, AssessmentAnalysis, GoalsAssessment, leaveform, 
-    DevelopmentGoals, TherapyDetails, GoalDomain, GoalLevel, GoalLibrary, AppointmentSchedule
+    DevelopmentGoals, TherapyDetails, GoalDomain, GoalLevel, GoalLibrary, AppointmentSchedule, ActivityLibrary
 )
 from djongo.models import ObjectIdField
 
@@ -256,6 +256,11 @@ class TherapyBillingSerializer(serializers.ModelSerializer):
             'lastmodified_date',
             'bill_date'
         ]
+    def validate_amount_paid(self, value):
+        if value < 1:
+            raise serializers.ValidationError("Bill amount paid must be at least 1.")
+        return value
+
     def create(self, validated_data):
         employee_id = self.context.get('employee_id')
         if employee_id:
@@ -738,7 +743,7 @@ class ClinicalPsychologyAssessmentSerializer(SafeJsonFieldsMixin, serializers.Mo
 from .models import OccupationalTherapyAssessment
 class OccupationalTherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
     id = ObjectIdField(read_only=True)
-    json_fields = ['motor_skills', 'handwriting_skills', 'cognitive_concepts', 'visual_perceptual_skills', 'sensory_evaluation', 'adl_evaluation', 'assessments_used']
+    json_fields = ['motor_skills', 'handwriting_skills', 'cognitive_concepts', 'visual_perceptual_skills', 'sensory_profile', 'adl_evaluation', 'assessments_used']
     class Meta:
         model = OccupationalTherapyAssessment
         fields = "__all__"
@@ -1061,7 +1066,7 @@ class TherapyDetailsSerializer(serializers.ModelSerializer):
     id = ObjectIdField(source='_id', read_only=True)
     class Meta:
         model = TherapyDetails
-        fields = ['id', 'therapy_name', 'therapy_id']
+        fields = ['id', 'therapy_name', 'therapy_id', 'color']
 
 class GoalDomainListSerializer(serializers.ListSerializer):
     def to_representation(self, data):
@@ -1282,6 +1287,139 @@ class GoalLibrarySerializer(serializers.ModelSerializer):
         return data
 
 
+class ActivityLibraryListSerializer(serializers.ListSerializer):
+    def to_representation(self, data):
+        therapies_map = {}
+        for t in TherapyDetails.objects.all():
+            therapies_map[str(t.pk)] = t.therapy_name
+            therapies_map[t.therapy_id] = t.therapy_name
+            therapies_map[t.therapy_name] = t.therapy_name
+            
+        domains_map_by_id = {}
+        domains_map_by_no = {}
+        domains_map_by_name = {}
+        for d in GoalDomain.objects.all():
+            domains_map_by_id[str(d.pk)] = d
+            domains_map_by_no[d.domain_no] = d
+            domains_map_by_name[d.name] = d
+
+        self.context['therapies_map'] = therapies_map
+        self.context['domains_map_by_id'] = domains_map_by_id
+        self.context['domains_map_by_no'] = domains_map_by_no
+        self.context['domains_map_by_name'] = domains_map_by_name
+
+        return super().to_representation(data)
+
+
+class ActivityLibrarySerializer(serializers.ModelSerializer):
+    id = ObjectIdField(source='_id', read_only=True)
+    therapy_type_name = serializers.SerializerMethodField()
+    domain_name = serializers.SerializerMethodField()
+    domain_no = serializers.SerializerMethodField()
+    
+    class Meta:
+        list_serializer_class = ActivityLibraryListSerializer
+        model = ActivityLibrary
+        fields = ['id', 'task_name', 'task_id', 'domain', 'domain_name', 'domain_no', 'therapy_type', 'therapy_type_name', 'is_custom']
+
+    def get_therapy_type_name(self, obj):
+        val = str(obj.therapy_type or "")
+        if not val: return "N/A"
+        
+        therapies_map = self.context.get('therapies_map')
+        if therapies_map is not None:
+            return therapies_map.get(val, val)
+
+        try:
+            t = TherapyDetails.objects.get(therapy_id=val)
+            return t.therapy_name
+        except: pass
+
+        if len(val) == 24:
+            try:
+                from bson import ObjectId
+                t = TherapyDetails.objects.get(_id=ObjectId(val))
+                return t.therapy_name
+            except: pass
+            
+        try:
+            t = TherapyDetails.objects.get(therapy_name=val)
+            return t.therapy_name
+        except: pass
+
+        return val
+
+    def get_domain_name(self, obj):
+        val = str(obj.domain or "")
+        if not val: return "N/A"
+        
+        domains_map_by_id = self.context.get('domains_map_by_id')
+        domains_map_by_no = self.context.get('domains_map_by_no')
+        domains_map_by_name = self.context.get('domains_map_by_name')
+        
+        if domains_map_by_id is not None and domains_map_by_no is not None and domains_map_by_name is not None:
+            d = domains_map_by_id.get(val) or domains_map_by_no.get(val) or domains_map_by_name.get(val)
+            if d: return d.name
+            return val
+
+        try:
+            d = GoalDomain.objects.get(domain_no=val)
+            return d.name
+        except: pass
+
+        if len(val) == 24:
+            try:
+                from bson import ObjectId
+                d = GoalDomain.objects.get(_id=ObjectId(val))
+                return d.name
+            except: pass
+
+        try:
+            d = GoalDomain.objects.get(name=val)
+            return d.name
+        except: pass
+
+        return val
+
+    def get_domain_no(self, obj):
+        val = str(obj.domain or "")
+        if not val: return "N/A"
+
+        domains_map_by_id = self.context.get('domains_map_by_id')
+        domains_map_by_no = self.context.get('domains_map_by_no')
+        domains_map_by_name = self.context.get('domains_map_by_name')
+        
+        if domains_map_by_id is not None and domains_map_by_no is not None and domains_map_by_name is not None:
+            d = domains_map_by_id.get(val) or domains_map_by_no.get(val) or domains_map_by_name.get(val)
+            if d: return d.domain_no
+            return val
+
+        try:
+            d = GoalDomain.objects.get(domain_no=val)
+            return d.domain_no
+        except: pass
+
+        if len(val) == 24:
+            try:
+                from bson import ObjectId
+                d = GoalDomain.objects.get(_id=ObjectId(val))
+                return d.domain_no
+            except: pass
+
+        try:
+            d = GoalDomain.objects.get(name=val)
+            return d.domain_no
+        except: pass
+
+        return val
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if 'therapy_type' in data: data['therapy_type'] = str(data['therapy_type'])
+        if 'domain' in data: data['domain'] = str(data['domain'])
+        return data
+
+
 class DailyTimeSlotSerializer(serializers.ModelSerializer):
     id = ObjectIdField(read_only=True)
     class Meta:
@@ -1294,9 +1432,29 @@ class PatientSessionAttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = PatientSessionAttendance
         fields = '__all__'
+        read_only_fields = ['id', 'session_id']
 
 class AppointmentScheduleSerializer(serializers.ModelSerializer):
     id = ObjectIdField(source='_id', read_only=True)
     class Meta:
         model = AppointmentSchedule
         fields = '__all__'
+
+from .models import EnquiryForm
+
+class EnquiryFormSerializer(serializers.ModelSerializer):
+    id = ObjectIdField(source='_id', read_only=True)
+
+    class Meta:
+        model = EnquiryForm
+        fields = '__all__'
+
+    def validate_age(self, value):
+        if value is None or value < 0:
+            raise serializers.ValidationError("Age must be a positive number.")
+        return value
+
+    def validate_mobile_number(self, value):
+        if value and not value.isdigit():
+            raise serializers.ValidationError("Mobile number must contain digits only.")
+        return value  

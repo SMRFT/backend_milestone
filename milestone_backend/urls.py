@@ -104,6 +104,8 @@ urlpatterns = [
     path('goal-levels/<str:pk>/', goalsmaster.level_detail, name='level_detail'),
     path('goal-libraries/', goalsmaster.goal_library_list_create, name='goal_library_list_create'),
     path('goal-libraries/<str:pk>/', goalsmaster.goal_library_detail, name='goal_library_detail'),
+    path('activity-libraries/', goalsmaster.activity_library_list_create, name='activity_library_list_create'),
+    path('activity-libraries/<str:pk>/', goalsmaster.activity_library_detail, name='activity_library_detail'),
 
     # Session Attendance
     path('session-attendance/slots/', sessionattendance.get_active_slots, name='session_attendance_slots'),
@@ -119,4 +121,8 @@ urlpatterns = [
     path('get_appointments_by_date/', appoinmentschedule.get_appointments_by_date, name='get_appointments_by_date'),
     path('update_appointment_status/', appoinmentschedule.update_appointment_status, name='update_appointment_status'),
     path('appointment_dashboard/', appoinmentschedule.appointment_dashboard, name='appointment_dashboard'),
+    path('search_appointments/', appoinmentschedule.search_appointments, name='search_appointments'),
+
+    #Enquiry form
+    path('enquiryform/', appoinmentschedule.enquiryform, name='enquiryform'),
 ]

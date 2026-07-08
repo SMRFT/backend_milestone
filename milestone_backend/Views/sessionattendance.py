@@ -13,6 +13,7 @@ from pyauth.auth import HasRolePermission
 
 
 @api_view(['GET'])
+@permission_classes([HasRolePermission])
 def load_session_attendance(request):
     try:
         registration_number = request.GET.get('registration_number')
@@ -107,12 +108,14 @@ def load_session_attendance(request):
                 slot_label = existing.slot_label
                 therapist = existing.therapist or ""
                 sessions_attended = existing.sessions_attended
+                session_id = existing.session_id or ""
             else:
                 attended = False
                 attended_slot = slots_data[0]["slot_id"] if slots_data else ""
                 slot_label = slots_data[0]["label"] if slots_data else ""
                 therapist = ""
                 sessions_attended = 1
+                session_id = ""
 
             result_therapies.append({
                 "therapy_id": tid,
@@ -121,7 +124,8 @@ def load_session_attendance(request):
                 "attended_slot": attended_slot,
                 "slot_label": slot_label,
                 "therapist": therapist,
-                "sessions_attended": sessions_attended
+                "sessions_attended": sessions_attended,
+                "session_id": session_id
             })
 
         return Response({
@@ -137,10 +141,12 @@ def load_session_attendance(request):
 
 
 @api_view(['POST'])
+@permission_classes([HasRolePermission])
 def save_session_attendance(request):
     try:
         data = request.data
-        employee_id = data.get("auth-user-id")
+        employee_id = data.get("auth-user-id","system")
+
         registration_number = data.get('registration_number')
         date_str = data.get('attendance_date')
         checked_therapies = data.get('checked_therapies', [])
@@ -151,6 +157,13 @@ def save_session_attendance(request):
                 {"error": "registration_number and attendance_date are required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        for ct in checked_therapies:
+            if not ct.get("therapist"):
+                return Response(
+                    {"error": f"Therapist is required for therapy: {ct.get('therapy_name', 'Unknown')}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         try:
             date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -186,23 +199,31 @@ def save_session_attendance(request):
             )
 
         # 2. Save PatientSessionAttendance for this exact date using ORM
-        # Delete existing entries for this patient on this exact date
-        PatientSessionAttendance.objects.filter(
+        # Fetch existing entries before deleting to preserve their session_id
+        existing_sessions = PatientSessionAttendance.objects.filter(
             registration_number=registration_number,
             attendance_date=date_obj
-        ).delete()
+        )
+        existing_session_id_map = {r.therapy_id: r.session_id for r in existing_sessions if r.session_id}
+        
+        # Delete existing entries
+        existing_sessions.delete()
 
         # Insert new ones for checked therapies on this exact date
         for ct in checked_therapies:
+            tid = ct.get("therapy_id")
+            preserved_session_id = existing_session_id_map.get(tid)
+            
             PatientSessionAttendance.objects.create(
                 registration_number=registration_number,
                 attendance_date=date_obj,
-                therapy_id=ct.get("therapy_id"),
+                therapy_id=tid,
                 therapy_name=ct.get("therapy_name"),
                 attended_slot=ct.get("attended_slot"),
                 slot_label=ct.get("slot_label"),
                 therapist=ct.get("therapist", ""),
                 sessions_attended=int(ct.get("sessions_attended", 1)),
+                session_id=preserved_session_id,
                 created_by=employee_id,
                 created_date=timezone.now(),
                 is_active=True
@@ -505,7 +526,8 @@ def get_monthly_attendance_report(request):
             
             matrix_data[key]["days"][day_str].append({
                 "slot": slot,
-                "therapist": therapist_name
+                "therapist": therapist_name,
+                "session_id": r.session_id or ""
             })
 
         result = list(matrix_data.values())

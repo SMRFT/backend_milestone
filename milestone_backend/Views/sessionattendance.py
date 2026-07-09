@@ -412,7 +412,7 @@ def get_underattended_patients(request):
         reg_numbers = list(patient_therapies.keys())
         registrations = Registration.objects.filter(registration_number__in=reg_numbers)
         patient_names = {r.registration_number: r.name_of_child for r in registrations}
-        patient_dobs = {r.registration_number: (r.dob.strftime('%Y-%m-%d') if r.dob else "N/A") for r in registrations}
+        patient_dobs = {r.registration_number: (r.dob[:10] if isinstance(r.dob, str) and r.dob else (r.dob.strftime('%Y-%m-%d') if r.dob else "N/A")) for r in registrations}
 
         result = []
         for reg, therapies_dict in patient_therapies.items():

@@ -592,8 +592,16 @@ class GoalDomain(AuditModel):
 
         if not self.domain_no:
             prefix = get_therapy_abbreviation(therapy_name)
-            count = GoalDomain.objects.filter(therapy_type=self.therapy_type).count()
-            self.domain_no = f"{prefix}{count+1:03d}"
+            domains = GoalDomain.objects.filter(domain_no__startswith=prefix)
+            max_num = 0
+            for d in domains:
+                try:
+                    num = int(d.domain_no[len(prefix):])
+                    if num > max_num:
+                        max_num = num
+                except:
+                    pass
+            self.domain_no = f"{prefix}{max_num+1:03d}"
         super().save(*args, **kwargs)
 
     def __str__(self): return self.name
@@ -696,8 +704,17 @@ class GoalLibrary(AuditModel):
                 therapy_name = self.therapy_type
                 
             prefix = get_therapy_abbreviation(therapy_name)
-            count = GoalLibrary.objects.filter(therapy_type=self.therapy_type).count()
-            self.goal_no = f"{prefix}GL{count+1:04d}"
+            full_prefix = f"{prefix}GL"
+            goals = GoalLibrary.objects.filter(goal_no__startswith=full_prefix)
+            max_num = 0
+            for g in goals:
+                try:
+                    num = int(g.goal_no[len(full_prefix):])
+                    if num > max_num:
+                        max_num = num
+                except:
+                    pass
+            self.goal_no = f"{full_prefix}{max_num+1:04d}"
             
         super().save(*args, **kwargs)
 
@@ -757,8 +774,16 @@ class ActivityLibrary(AuditModel):
 
         # 3. Generate task_id if empty
         if not self.task_id:
-            count = ActivityLibrary.objects.count()
-            self.task_id = f"ACT{count+1:06d}"
+            activities = ActivityLibrary.objects.filter(task_id__startswith="ACT")
+            max_num = 0
+            for a in activities:
+                try:
+                    num = int(a.task_id[3:])
+                    if num > max_num:
+                        max_num = num
+                except:
+                    pass
+            self.task_id = f"ACT{max_num+1:06d}"
             
         super().save(*args, **kwargs)
 

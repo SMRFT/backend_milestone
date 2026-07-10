@@ -900,6 +900,69 @@ class LeaveFormSerializer(serializers.ModelSerializer):
         model = leaveform
         fields = '__all__'
 
+class DevelopmentGoalsListSerializer(serializers.ListSerializer):
+    def to_representation(self, data):
+        # Fetch and cache domains, therapies, levels, registrations, and employee details for all objects in the list
+        from .models import GoalDomain, TherapyDetails, GoalLevel, Registration
+        from bson import ObjectId
+
+        # 1. Fetch all domains
+        all_domains = list(GoalDomain.objects.all())
+        domains = {d.domain_no: d.name for d in all_domains if d.domain_no}
+        domains_by_id = {str(d._id): d.name for d in all_domains if d._id}
+        domains_by_name = {d.name: d.name for d in all_domains if d.name}
+        
+        # 2. Fetch all therapies
+        all_therapies = list(TherapyDetails.objects.all())
+        therapies = {t.therapy_id: t.therapy_name for t in all_therapies if t.therapy_id}
+        therapies_by_id = {str(t._id): t.therapy_name for t in all_therapies if t._id}
+        therapies_by_name = {t.therapy_name: t.therapy_name for t in all_therapies if t.therapy_name}
+        
+        # 3. Fetch all levels
+        all_levels = list(GoalLevel.objects.all())
+        levels = {l.level_id: l.name for l in all_levels if l.level_id}
+        levels_by_id = {str(l._id): l.name for l in all_levels if l._id}
+        levels_by_name = {l.name: l.name for l in all_levels if l.name}
+
+        # Save to context
+        self.context['domains'] = domains
+        self.context['domains_by_id'] = domains_by_id
+        self.context['domains_by_name'] = domains_by_name
+        self.context['therapies'] = therapies
+        self.context['therapies_by_id'] = therapies_by_id
+        self.context['therapies_by_name'] = therapies_by_name
+        self.context['levels'] = levels
+        self.context['levels_by_id'] = levels_by_id
+        self.context['levels_by_name'] = levels_by_name
+
+        # Collect registration numbers
+        reg_numbers = set()
+        for item in data:
+            if hasattr(item, 'registration_number') and item.registration_number:
+                reg_numbers.add(item.registration_number)
+            elif isinstance(item, dict) and item.get('registration_number'):
+                reg_numbers.add(item.get('registration_number'))
+
+        patients = {}
+        for p in Registration.objects.filter(registration_number__in=list(reg_numbers)):
+            patients[p.registration_number] = p
+        self.context['patients_map'] = patients
+
+        # Cache employee details
+        created_by_ids = set()
+        for item in data:
+            if hasattr(item, 'created_by') and item.created_by:
+                created_by_ids.add(item.created_by)
+            elif isinstance(item, dict) and item.get('created_by'):
+                created_by_ids.add(item.get('created_by'))
+        
+        employee_map = {}
+        for emp_id in created_by_ids:
+            employee_map[emp_id] = get_employee_details(emp_id)
+        self.context['employee_map'] = employee_map
+
+        return super().to_representation(data)
+
 class DevelopmentGoalsSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
     id = ObjectIdField(source='_id', read_only=True)
     goals = serializers.SerializerMethodField()
@@ -907,6 +970,7 @@ class DevelopmentGoalsSerializer(SafeJsonFieldsMixin, serializers.ModelSerialize
     json_fields = ['development_goals']
     
     class Meta:
+        list_serializer_class = DevelopmentGoalsListSerializer
         model = DevelopmentGoals
         fields = [
             'id', 'registration_number', 'date', 'development_goals', 
@@ -919,7 +983,78 @@ class DevelopmentGoalsSerializer(SafeJsonFieldsMixin, serializers.ModelSerialize
         
         reg_num = data.get("registration_number")
         ref_date = data.get("date")
-        demo = get_demographics_by_registration(reg_num, ref_date=ref_date)
+        
+        patients_map = self.context.get('patients_map')
+        demo = None
+        if patients_map is not None:
+            patient = patients_map.get(reg_num)
+            if patient:
+                demo = {
+                    "dob": "—",
+                    "father": "—",
+                    "mother": "—",
+                    "mobile": "—",
+                    "address": "—",
+                    "age": "—"
+                }
+                if patient.dob:
+                    if hasattr(patient.dob, 'strftime'):
+                        demo["dob"] = patient.dob.strftime('%Y-%m-%d')
+                    else:
+                        demo["dob"] = str(patient.dob)
+                demo["father"] = patient.father_name or "—"
+                demo["mother"] = patient.mother_name or "—"
+                demo["mobile"] = patient.father_phone_number or patient.mother_phone_number or "—"
+                demo["address"] = patient.address or "—"
+                
+                # Age calculation
+                if patient.dob and ref_date:
+                    from datetime import datetime
+                    try:
+                        dob = patient.dob
+                        if isinstance(dob, str):
+                            dob = datetime.strptime(dob.split('T')[0], '%Y-%m-%d').date()
+                        elif isinstance(dob, datetime):
+                            dob = dob.date()
+                        
+                        target_date = ref_date
+                        if isinstance(target_date, str):
+                            target_date = datetime.strptime(target_date.split('T')[0], '%Y-%m-%d').date()
+                        elif isinstance(target_date, datetime):
+                            target_date = target_date.date()
+                        
+                        years = target_date.year - dob.year - ((target_date.month, target_date.day) < (dob.month, dob.day))
+                        if target_date.day >= dob.day:
+                            months = target_date.month - dob.month
+                        else:
+                            months = target_date.month - dob.month - 1
+                        if months < 0:
+                            months += 12
+                        
+                        parts = []
+                        if years > 0:
+                            parts.append(f"{years} Years")
+                        if months > 0:
+                            parts.append(f"{months} Months")
+                        demo["age"] = " ".join(parts) if parts else "0 Months"
+                    except Exception as e:
+                        print("Error calculating age in demo:", e)
+                
+                if demo["age"] == "—" and patient.age:
+                    age_val = patient.age
+                    if isinstance(age_val, dict):
+                        parts = []
+                        year = age_val.get("year") or age_val.get("years")
+                        if year is not None:
+                            parts.append(f"{year} Years")
+                        month = age_val.get("months") or age_val.get("month")
+                        if month is not None:
+                            parts.append(f"{month} Months")
+                        if parts:
+                            demo["age"] = " ".join(parts)
+        
+        if demo is None:
+            demo = get_demographics_by_registration(reg_num, ref_date=ref_date)
         
         data["dob"] = demo.get("dob", "—")
         data["father"] = demo.get("father", "—")
@@ -929,11 +1064,22 @@ class DevelopmentGoalsSerializer(SafeJsonFieldsMixin, serializers.ModelSerialize
         data["age_str"] = demo.get("age", "—")
         
         created_by = data.get("created_by")
-        emp_details = get_employee_details(created_by)
+        employee_map = self.context.get('employee_map')
+        if employee_map is not None and created_by in employee_map:
+            emp_details = employee_map[created_by]
+        else:
+            emp_details = get_employee_details(created_by)
+            
         data["created_by_name"] = emp_details.get("created_by_name")
         data["created_by_qualification"] = emp_details.get("created_by_qualification")
         data["created_by_designation"] = emp_details.get("created_by_designation") or ""
         
+        if hasattr(instance, '_id') and instance._id:
+            data['id'] = str(instance._id)
+        elif hasattr(instance, 'pk') and instance.pk:
+            data['id'] = str(instance.pk)
+            
+        data['development_goals'] = data.get('goals', [])
         return data
 
     def get_goals(self, obj):
@@ -954,22 +1100,34 @@ class DevelopmentGoalsSerializer(SafeJsonFieldsMixin, serializers.ModelSerialize
                 from .models import GoalDomain, TherapyDetails, GoalLevel
                 
                 # Fetch and index domains
-                all_domains = list(GoalDomain.objects.all())
-                domains = {d.domain_no: d.name for d in all_domains if d.domain_no}
-                domains_by_id = {str(d._id): d.name for d in all_domains if d._id}
-                domains_by_name = {d.name: d.name for d in all_domains if d.name}
+                domains = self.context.get('domains')
+                domains_by_id = self.context.get('domains_by_id')
+                domains_by_name = self.context.get('domains_by_name')
+                if domains is None or domains_by_id is None or domains_by_name is None:
+                    all_domains = list(GoalDomain.objects.all())
+                    domains = {d.domain_no: d.name for d in all_domains if d.domain_no}
+                    domains_by_id = {str(d._id): d.name for d in all_domains if d._id}
+                    domains_by_name = {d.name: d.name for d in all_domains if d.name}
                 
                 # Fetch and index therapies
-                all_therapies = list(TherapyDetails.objects.all())
-                therapies = {t.therapy_id: t.therapy_name for t in all_therapies if t.therapy_id}
-                therapies_by_id = {str(t._id): t.therapy_name for t in all_therapies if t._id}
-                therapies_by_name = {t.therapy_name: t.therapy_name for t in all_therapies if t.therapy_name}
+                therapies = self.context.get('therapies')
+                therapies_by_id = self.context.get('therapies_by_id')
+                therapies_by_name = self.context.get('therapies_by_name')
+                if therapies is None or therapies_by_id is None or therapies_by_name is None:
+                    all_therapies = list(TherapyDetails.objects.all())
+                    therapies = {t.therapy_id: t.therapy_name for t in all_therapies if t.therapy_id}
+                    therapies_by_id = {str(t._id): t.therapy_name for t in all_therapies if t._id}
+                    therapies_by_name = {t.therapy_name: t.therapy_name for t in all_therapies if t.therapy_name}
                 
                 # Fetch and index levels
-                all_levels = list(GoalLevel.objects.all())
-                levels = {l.level_id: l.name for l in all_levels if l.level_id}
-                levels_by_id = {str(l._id): l.name for l in all_levels if l._id}
-                levels_by_name = {l.name: l.name for l in all_levels if l.name}
+                levels = self.context.get('levels')
+                levels_by_id = self.context.get('levels_by_id')
+                levels_by_name = self.context.get('levels_by_name')
+                if levels is None or levels_by_id is None or levels_by_name is None:
+                    all_levels = list(GoalLevel.objects.all())
+                    levels = {l.level_id: l.name for l in all_levels if l.level_id}
+                    levels_by_id = {str(l._id): l.name for l in all_levels if l._id}
+                    levels_by_name = {l.name: l.name for l in all_levels if l.name}
 
                 import copy
                 goals = copy.deepcopy(goals)
@@ -1012,9 +1170,15 @@ class DevelopmentGoalsSerializer(SafeJsonFieldsMixin, serializers.ModelSerialize
 
     def get_registration_details(self, obj):
         try:
-            patient = Registration.objects.filter(registration_number=obj.registration_number).first()
+            patients_map = self.context.get('patients_map')
+            if patients_map is not None:
+                patient = patients_map.get(obj.registration_number)
+            else:
+                from .models import Registration
+                patient = Registration.objects.filter(registration_number=obj.registration_number).first()
+                
             if patient:
-                data = RegistrationSerializer(patient).data
+                data = RegistrationSerializer(patient, context=self.context).data
                 if patient.dob and obj.date:
                     from datetime import datetime, date
                     
@@ -1050,17 +1214,6 @@ class DevelopmentGoalsSerializer(SafeJsonFieldsMixin, serializers.ModelSerialize
             print(f"Error calculating age: {e}")
             traceback.print_exc()
             return None
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        # Ensure 'id' is always present as a string for the frontend
-        if hasattr(instance, '_id') and instance._id:
-            data['id'] = str(instance._id)
-        elif hasattr(instance, 'pk') and instance.pk:
-            data['id'] = str(instance.pk)
-            
-        data['development_goals'] = data.get('goals', [])
-        return data
 
 class TherapyDetailsSerializer(serializers.ModelSerializer):
     id = ObjectIdField(source='_id', read_only=True)

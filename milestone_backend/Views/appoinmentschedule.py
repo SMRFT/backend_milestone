@@ -593,25 +593,42 @@ def search_appointments(request):
         )
     qs = qs.order_by('-date')[:100]
     
-    # 4. Further filter in Python: exclude any appointment where name and mobile match an existing Registration record
-    registered_patients = Registration.objects.all().values('name_of_child', 'mother_phone_number', 'father_phone_number')
-    registered_set = set()
-    for reg in registered_patients:
+    # 4. Further filter in Python: exclude any appointment where name and mobile match an existing Registration record,
+    # or registration number is available, or appointment_id is present in an existing registration
+    registrations = Registration.objects.all().values('appointment_id', 'registration_number', 'name_of_child', 'mother_phone_number', 'father_phone_number')
+    registered_appointment_ids = set()
+    registered_patients = set()
+    
+    for reg in registrations:
+        appt_id = reg.get('appointment_id')
+        if appt_id is not None:
+            registered_appointment_ids.add(appt_id)
+            
         name = reg.get('name_of_child', '').strip().lower() if reg.get('name_of_child') else ''
         m_phone = reg.get('mother_phone_number', '').strip() if reg.get('mother_phone_number') else ''
         f_phone = reg.get('father_phone_number', '').strip() if reg.get('father_phone_number') else ''
         if name:
             if m_phone:
-                registered_set.add((name, m_phone))
+                registered_patients.add((name, m_phone))
             if f_phone:
-                registered_set.add((name, f_phone))
+                registered_patients.add((name, f_phone))
                 
     filtered_list = []
     for appt in qs:
+        # Exclude if registration_number is already set in the appointment
+        if appt.registration_number and appt.registration_number.strip():
+            continue
+            
+        # Exclude if appointment_id is present in existing registrations
+        if appt.appointment_id in registered_appointment_ids:
+            continue
+            
+        # Exclude if name and mobile match an existing Registration record
         appt_name = appt.name_of_child.strip().lower() if appt.name_of_child else ''
         appt_phone = appt.mobile_number.strip() if appt.mobile_number else ""
-        if (appt_name, appt_phone) in registered_set:
+        if (appt_name, appt_phone) in registered_patients:
             continue
+            
         filtered_list.append(appt)
         
     serializer = AppointmentScheduleSerializer(filtered_list[:50], many=True)

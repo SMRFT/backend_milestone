@@ -113,78 +113,76 @@ def update_registration(request, registration_number):
         # MongoDB connection setup
         mongo_uri = os.environ.get("GLOBAL_DB_HOST")
         db_name = os.environ.get("MILESTONE_DB_NAME", "Milestone")
-        collection_name = "milestone_backend_registration"  # Assuming this is the collection name
-        
-        # Connect to MongoDB
+        collection_name = "milestone_backend_registration"
+
         client = MongoClient(mongo_uri)
         db = client[db_name]
         collection = db[collection_name]
-        
-        # Find the document by registration_number
+
         registration_doc = collection.find_one({"registration_number": registration_number})
-        
+
         if not registration_doc:
             return Response(
-                {'error': 'Registration not found'}, 
+                {'error': 'Registration not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        
+
         # Extract employee ID from request
         employee_id = request.data.get('auth-user-id')
-        
+
         # Prepare update data
         update_data = {}
-        
-        # Add fields from request data (excluding system fields)
+
+        # Add fields from request data (excluding system fields and auth/permission metadata)
         excluded_fields = ['_id', 'created_at', 'lastmodified_date', 'lastmodified_by', 'registration_number']
         for key, value in request.data.items():
-            if key not in excluded_fields:
-                if key in ['age', 'reason_for_visit', 'source_of_referral']:
-                    update_data[key] = safe_parse_json(value)
-                else:
-                    update_data[key] = value
-        
+            if key in excluded_fields or key.startswith('auth-'):
+                continue
+            if key in ['age', 'reason_for_visit', 'source_of_referral']:
+                update_data[key] = safe_parse_json(value)
+            else:
+                update_data[key] = value
+
         # Add audit fields
         update_data['lastmodified_date'] = datetime.now()
         if employee_id:
             update_data['lastmodified_by'] = employee_id
-        
+
         # Perform the update
         result = collection.update_one(
             {"registration_number": registration_number},
             {"$set": update_data}
         )
-        
+
         if result.modified_count > 0:
-            # Fetch the updated document
             updated_doc = collection.find_one({"registration_number": registration_number})
-            
-            # Convert ObjectId to string for JSON serialization
+
             if '_id' in updated_doc:
                 updated_doc['_id'] = str(updated_doc['_id'])
-            
-            # Convert datetime objects to ISO format strings
+
             for key, value in updated_doc.items():
                 if isinstance(value, datetime):
                     updated_doc[key] = value.isoformat()
-            
+
             return Response(updated_doc, status=status.HTTP_200_OK)
         else:
             return Response(
-                {'message': 'No changes were made'}, 
+                {'message': 'No changes were made'},
                 status=status.HTTP_200_OK
             )
-        
+
     except Exception as e:
         return Response(
-            {'error': str(e)}, 
+            {'error': str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     finally:
-        # Always close the MongoDB connection
         if 'client' in locals():
             client.close()
 
+
+
+            
 from ..models import Registration, PatientAssessment, PatientAttendance
 from ..serializers import RegistrationSerializer
 import json

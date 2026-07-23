@@ -16,14 +16,16 @@ class AuditModel(models.Model):
         abstract = True
 
 class Registration(AuditModel):
+    salutation = models.CharField(max_length=10)
     name_of_child = models.CharField(max_length=100)
-    dob = models.DateField(null=True, blank=True)  # Added dob field
+    dob = models.DateField(null=True, blank=True)  
     age = models.JSONField()
     sex = models.CharField(max_length=10)
     date = models.DateField(auto_now_add=True)
     mother_name = models.CharField(max_length=100, blank=True)
     father_name = models.CharField(max_length=100, blank=True)
     guardian_name= models.CharField(max_length=100, blank=True)
+    husband_name = models.CharField(max_length=100, blank=True)
     address = models.TextField(blank=True)
     mail_id = models.TextField(blank=True)
     mother_phone_number = models.CharField(max_length=15, blank=True) 
@@ -918,3 +920,5 @@ class EnquiryForm(AuditModel):
 
     def __str__(self):
         return f"{self.enquiry_id} - {self.name_of_child}"
+
+

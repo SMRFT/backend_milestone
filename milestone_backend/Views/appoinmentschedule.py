@@ -581,7 +581,7 @@ def search_appointments(request):
     qs = AppointmentSchedule.objects.filter(status__in=["Scheduled", "Rescheduled"]).exclude(appointment_id__in=list(registered_ids))
     
     # 2. Exclude appointments that already have a registration number
-    qs = qs.exclude(registration_number__isnull=False).exclude(registration_number="")
+    qs = qs.filter(Q(registration_number__isnull=True) | Q(registration_number=""))
     
     # 3. Apply search query
     if q:

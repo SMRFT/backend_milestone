@@ -117,6 +117,7 @@ PAGE_MAPPING = {
     #Enquiry form
     '/_b_a_c_k_e_n_d/Milestone/enquiryform/':'MDC-P-EF',
     r'/_b_a_c_k_e_n_d/Milestone/search_appointments/?(\?.*)?$':'MDC-P-CA',
+    r'/_b_a_c_k_e_n_d/Milestone/behavioral-observation-options/?(\?.*)?$':'MDC-P-AD',
 
     # Therapy
     '/therapy-reports/':'MDC-API-THR',

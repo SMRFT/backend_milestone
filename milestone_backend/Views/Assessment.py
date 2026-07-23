@@ -17,8 +17,8 @@ from django.views.decorators.csrf import csrf_exempt
 
 load_dotenv()
 
-from ..models import ClinicalPsychologyAssessment, OccupationalTherapyAssessment, SpeechTherapyAssessment, PhysiotherapyAssessment, PatientAssessment, AssessmentAnalysis
-from ..serializers import ClinicalPsychologyAssessmentSerializer, OccupationalTherapyAssessmentSerializer, SpeechTherapyAssessmentSerializer, PhysiotherapyAssessmentSerializer, AssessmentAnalysisSerializer
+from ..models import ClinicalPsychologyAssessment, OccupationalTherapyAssessment, SpeechTherapyAssessment, PhysiotherapyAssessment, PatientAssessment, AssessmentAnalysis, BehavioralObservationOption
+from ..serializers import ClinicalPsychologyAssessmentSerializer, OccupationalTherapyAssessmentSerializer, SpeechTherapyAssessmentSerializer, PhysiotherapyAssessmentSerializer, AssessmentAnalysisSerializer, BehavioralObservationOptionSerializer
 
 
 # -----------------------------------
@@ -262,7 +262,7 @@ def get_all_category_patients(request):
     )
 
 
-@api_view(['GET', 'POST'])
+@api_view(['GET', 'POST', 'PUT'])
 @permission_classes([HasRolePermission])
 def clinical_psychology_assessment(request):
 
@@ -286,8 +286,23 @@ def clinical_psychology_assessment(request):
             )
         return Response(serializer.errors, status=400)
 
+    if request.method == 'PUT':
+        record_id = request.data.get("id") or request.data.get("_id")
+        if not record_id:
+            return Response({"error": "ID is required for update"}, status=400)
+        try:
+            instance = ClinicalPsychologyAssessment.objects.get(pk=record_id)
+        except ClinicalPsychologyAssessment.DoesNotExist:
+            return Response({"error": "Record not found"}, status=404)
+        
+        serializer = ClinicalPsychologyAssessmentSerializer(instance, data=request.data, partial=True)
+        if serializer.is_valid():
+            updated_instance = update_with_audit(serializer, request)
+            return Response(ClinicalPsychologyAssessmentSerializer(updated_instance).data)
+        return Response(serializer.errors, status=400)
 
-@api_view(['GET', 'POST'])
+
+@api_view(['GET', 'POST', 'PUT'])
 @permission_classes([HasRolePermission])
 def occupational_therapy_assessment(request):
 
@@ -311,8 +326,23 @@ def occupational_therapy_assessment(request):
             )
         return Response(serializer.errors, status=400)
 
+    if request.method == 'PUT':
+        record_id = request.data.get("id") or request.data.get("_id")
+        if not record_id:
+            return Response({"error": "ID is required for update"}, status=400)
+        try:
+            instance = OccupationalTherapyAssessment.objects.get(pk=record_id)
+        except OccupationalTherapyAssessment.DoesNotExist:
+            return Response({"error": "Record not found"}, status=404)
+        
+        serializer = OccupationalTherapyAssessmentSerializer(instance, data=request.data, partial=True)
+        if serializer.is_valid():
+            updated_instance = update_with_audit(serializer, request)
+            return Response(OccupationalTherapyAssessmentSerializer(updated_instance).data)
+        return Response(serializer.errors, status=400)
 
-@api_view(['GET', 'POST'])
+
+@api_view(['GET', 'POST', 'PUT'])
 @permission_classes([HasRolePermission])
 def speech_therapy_assessment(request):
 
@@ -336,8 +366,23 @@ def speech_therapy_assessment(request):
             )
         return Response(serializer.errors, status=400)
 
+    if request.method == 'PUT':
+        record_id = request.data.get("id") or request.data.get("_id")
+        if not record_id:
+            return Response({"error": "ID is required for update"}, status=400)
+        try:
+            instance = SpeechTherapyAssessment.objects.get(pk=record_id)
+        except SpeechTherapyAssessment.DoesNotExist:
+            return Response({"error": "Record not found"}, status=404)
+        
+        serializer = SpeechTherapyAssessmentSerializer(instance, data=request.data, partial=True)
+        if serializer.is_valid():
+            updated_instance = update_with_audit(serializer, request)
+            return Response(SpeechTherapyAssessmentSerializer(updated_instance).data)
+        return Response(serializer.errors, status=400)
 
-@api_view(['GET', 'POST'])
+
+@api_view(['GET', 'POST', 'PUT'])
 @permission_classes([HasRolePermission])
 def physiotherapy_assessment(request):
 
@@ -359,6 +404,21 @@ def physiotherapy_assessment(request):
                 PhysiotherapyAssessmentSerializer(instance).data,
                 status=status.HTTP_201_CREATED
             )
+        return Response(serializer.errors, status=400)
+
+    if request.method == 'PUT':
+        record_id = request.data.get("id") or request.data.get("_id")
+        if not record_id:
+            return Response({"error": "ID is required for update"}, status=400)
+        try:
+            instance = PhysiotherapyAssessment.objects.get(pk=record_id)
+        except PhysiotherapyAssessment.DoesNotExist:
+            return Response({"error": "Record not found"}, status=404)
+        
+        serializer = PhysiotherapyAssessmentSerializer(instance, data=request.data, partial=True)
+        if serializer.is_valid():
+            updated_instance = update_with_audit(serializer, request)
+            return Response(PhysiotherapyAssessmentSerializer(updated_instance).data)
         return Response(serializer.errors, status=400)
 
 @api_view(['GET', 'POST'])
@@ -421,4 +481,33 @@ def assessment_analysis_detail(request, pk):
             update_with_audit(serializer, request)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET', 'POST'])
+@permission_classes([HasRolePermission])
+def behavioral_observation_options(request):
+    if request.method == 'GET':
+        if BehavioralObservationOption.objects.count() == 0:
+            defaults = [
+                "Binet Kamat Test of Intelligence (BKT)",
+                "Vineland Social Maturity Scale (VSMS)",
+                "Developmental Screening Test (DST)",
+                "Childhood Autism Rating Scale - Second Edition (CARS-2)",
+                "Modified Checklist for Autism in Toddlers (M-CHAT)",
+                "ISAA (Indian Scale for Assessment of Autism)",
+                "Seguin Form Board Test (SFBT)",
+                "ADHD Assessment"
+            ]
+            for name in defaults:
+                BehavioralObservationOption.objects.get_or_create(name=name)
+
+        options = BehavioralObservationOption.objects.all().order_by('name')
+        serializer = BehavioralObservationOptionSerializer(options, many=True)
+        return Response(serializer.data)
+
+    if request.method == 'POST':
+        serializer = BehavioralObservationOptionSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

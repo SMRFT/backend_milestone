@@ -76,6 +76,7 @@ class PatientAssessment(AuditModel):
 
     def save(self, *args, **kwargs):
         if not self.billing_no:
+            # pyrefly: ignore [missing-import]
             from .Views.invoice import get_latest_billing_no
             latest_billing_no = get_latest_billing_no(None).content.decode()
             self.billing_no = latest_billing_no['billing_no']
@@ -922,3 +923,8 @@ class EnquiryForm(AuditModel):
         return f"{self.enquiry_id} - {self.name_of_child}"
 
 
+class BehavioralObservationOption(AuditModel):
+    name = models.CharField(max_length=255, unique=True)
+
+    def __str__(self):
+        return self.name

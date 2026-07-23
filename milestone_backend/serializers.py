@@ -7,7 +7,8 @@ from .models import (
     CBCL, ConsultingDoctor, PatientAttendance, HistoryRecordingSheet, 
     ClinicalPsychologyAssessment, OccupationalTherapyAssessment, SpeechTherapyAssessment, 
     PhysiotherapyAssessment, AssessmentAnalysis, GoalsAssessment, leaveform, 
-    DevelopmentGoals, TherapyDetails, GoalDomain, GoalLevel, GoalLibrary, AppointmentSchedule, ActivityLibrary
+    DevelopmentGoals, TherapyDetails, GoalDomain, GoalLevel, GoalLibrary, AppointmentSchedule, ActivityLibrary,
+    BehavioralObservationOption
 )
 from djongo.models import ObjectIdField
 
@@ -1611,3 +1612,9 @@ class EnquiryFormSerializer(serializers.ModelSerializer):
         if value and not value.isdigit():
             raise serializers.ValidationError("Mobile number must contain digits only.")
         return value  
+
+class BehavioralObservationOptionSerializer(serializers.ModelSerializer):
+    id = ObjectIdField(source='_id', read_only=True)
+    class Meta:
+        model = BehavioralObservationOption
+        fields = ['id', 'name']

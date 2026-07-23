@@ -8,8 +8,9 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
  
-from ..models import AppointmentSchedule, EnquiryForm, Registration
-from ..serializers import AppointmentScheduleSerializer, EnquiryFormSerializer
+from ..models import AppointmentSchedule, EnquiryForm, Registration, PatientAttendance, PatientSessionAttendance
+from ..serializers import AppointmentScheduleSerializer, EnquiryFormSerializer, RegistrationSerializer
+
 from .dbcollection import profile_collection
 from datetime import datetime, date as date_cls
 
@@ -214,13 +215,11 @@ def update_appointment_status(request):
     except AppointmentSchedule.DoesNotExist:
         return Response({"success": False, "error": "Appointment not found."}, status=404)
  
-    # ✅ Cancel is allowed from either Scheduled or Rescheduled (so a
-    # rescheduled appointment can still be cancelled). A further reschedule
-    # is only allowed while still Scheduled — checked separately below.
-    if new_status == "Cancelled":
+    # ✅ Cancel, Reschedule, and Finish are allowed from either Scheduled or Rescheduled
+    if new_status in ("Cancelled", "Finished", "Rescheduled"):
         if appointment.status not in ("Scheduled", "Rescheduled"):
             return Response(
-                {"success": False, "error": "Only scheduled or rescheduled appointments can be cancelled."},
+                {"success": False, "error": f"Only scheduled or rescheduled appointments can be updated to '{new_status}'."},
                 status=400
             )
     else:
@@ -238,26 +237,50 @@ def update_appointment_status(request):
                 {"success": False, "error": "'rescheduled_therapist_id' is required to reschedule."},
                 status=400
             )
- 
-        # ✅ therapist_id is the doctor the appointment was originally booked
-        # with and is never touched. The doctor currently holding the slot is
-        # therapist_id for a plain "Scheduled" appointment, or
-        # rescheduled_therapist_id for one that's already been "Rescheduled" —
-        # so the clash check has to look at both to correctly detect a
-        # double-booking for the incoming doctor.
+
+        # Optional new date/time slot for reschedule
+        new_date_str = request.data.get("date")
+        new_start_time_str = request.data.get("slot_start_time")
+        new_end_time_str = request.data.get("slot_end_time")
+
+        target_date = appointment.date
+        target_start = appointment.slot_start_time
+        target_end = appointment.slot_end_time
+
+        if new_date_str:
+            try:
+                target_date = datetime.strptime(new_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                return Response({"success": False, "error": "Invalid date format. Use YYYY-MM-DD."}, status=400)
+
+        if new_start_time_str:
+            try:
+                target_start = datetime.strptime(new_start_time_str, "%H:%M").time()
+            except ValueError:
+                return Response({"success": False, "error": "Invalid slot_start_time format. Use HH:MM."}, status=400)
+
+        if new_end_time_str:
+            try:
+                target_end = datetime.strptime(new_end_time_str, "%H:%M").time()
+            except ValueError:
+                return Response({"success": False, "error": "Invalid slot_end_time format. Use HH:MM."}, status=400)
+
+        # ✅ Check for doctor clash on the target date/slot
         clash = AppointmentSchedule.objects.filter(
-            date=appointment.date,
-            slot_start_time=appointment.slot_start_time,
-            slot_end_time=appointment.slot_end_time,
+            date=target_date,
+            slot_start_time=target_start,
+            slot_end_time=target_end,
         ).exclude(appointment_id=appointment.appointment_id).filter(
             Q(status="Scheduled", therapist_id=new_therapist_id) |
             Q(status="Rescheduled", rescheduled_therapist_id=new_therapist_id)
         ).exists()
         if clash:
             return Response({"success": False, "error": "That doctor already has a booking in this slot."}, status=400)
- 
-        # ✅ Only rescheduled_therapist_id is updated. therapist_id (the
-        # original booking) is deliberately left unchanged.
+
+        # Update appointment details
+        appointment.date = target_date
+        appointment.slot_start_time = target_start
+        appointment.slot_end_time = target_end
         appointment.rescheduled_therapist_id = new_therapist_id
         appointment.status = "Rescheduled"
         message = f"Appointment for {appointment.name_of_child} has been rescheduled."
@@ -388,7 +411,7 @@ def appointment_dashboard(request):
     # ---- resolve role + base scope (before date/status/therapist filters) ----
     if is_admin or is_receptionist:
         role = "admin" if is_admin else "receptionist"
-        base_scope = AppointmentSchedule.objects.all()
+        base_scope = AppointmentSchedule.objects.exclude(status="Finished")
     else:
         own_scope = Q(therapist_id=employee_id) | Q(rescheduled_therapist_id=employee_id)
         has_appointment_history = AppointmentSchedule.objects.filter(own_scope).exists()
@@ -398,37 +421,58 @@ def appointment_dashboard(request):
                 status=403
             )
         role = "therapist"
-        base_scope = AppointmentSchedule.objects.filter(own_scope)
+        base_scope = AppointmentSchedule.objects.filter(own_scope).exclude(status="Finished")
  
     # ---- query params ---------------------------------------------------
-    date_param = request.query_params.get("date")
+    from_date_param = request.query_params.get("from_date")
+    to_date_param = request.query_params.get("to_date")
     status_param = request.query_params.get("status")
     therapist_param = request.query_params.get("therapist_id")
- 
+
     filters = Q()
-    if date_param:
-        try:
-            parsed_date = datetime.strptime(date_param, "%Y-%m-%d").date()
-        except ValueError:
-            return Response({"success": False, "error": "Invalid 'date' — expected YYYY-MM-DD."}, status=400)
-        filters &= Q(date=parsed_date)
+    date_filtered = False
+
+    if from_date_param or to_date_param:
+        date_filtered = True
+        if from_date_param:
+            try:
+                parsed_from = datetime.strptime(from_date_param, "%Y-%m-%d").date()
+                filters &= Q(date__gte=parsed_from)
+            except ValueError:
+                return Response({"success": False, "error": "Invalid 'from_date' — expected YYYY-MM-DD."}, status=400)
+        if to_date_param:
+            try:
+                parsed_to = datetime.strptime(to_date_param, "%Y-%m-%d").date()
+                filters &= Q(date__lte=parsed_to)
+            except ValueError:
+                return Response({"success": False, "error": "Invalid 'to_date' — expected YYYY-MM-DD."}, status=400)
+    else:
+        # Default: date pickers are empty. Show all upcoming and pending appointments.
+        today = date_cls.today()
+        filters &= Q(date__gte=today)
+        # If user explicitly filters status, respect it, otherwise default to Scheduled/Rescheduled
+        if not status_param:
+            filters &= Q(status__in=["Scheduled", "Rescheduled"])
+
     if status_param:
         filters &= Q(status=status_param)
     if therapist_param and role in ("admin", "receptionist"):
         filters &= (Q(therapist_id=therapist_param) | Q(rescheduled_therapist_id=therapist_param))
-        # NOTE: a "therapist" caller can't widen or redirect their scope via
-        # this param — they only ever see base_scope (their own appointments).
- 
-    queryset = base_scope.filter(filters).order_by("-date", "slot_start_time")
- 
+
+    queryset = base_scope.filter(filters).order_by("date", "slot_start_time")
+
     # ---- summary metrics --------------------------------------------------
-    # total/scheduled/rescheduled/cancelled respect the selected date filter
-    # (so picking a date updates these counts to that day's breakdown) while
-    # ignoring status/therapist filters, so switching those doesn't skew the
-    # picture. today_appointments always reflects the literal current date,
-    # regardless of what's selected in the date filter.
     today = date_cls.today()
-    summary_scope = base_scope.filter(date=parsed_date) if date_param else base_scope
+    summary_filters = Q()
+    if date_filtered:
+        if from_date_param:
+            summary_filters &= Q(date__gte=datetime.strptime(from_date_param, "%Y-%m-%d").date())
+        if to_date_param:
+            summary_filters &= Q(date__lte=datetime.strptime(to_date_param, "%Y-%m-%d").date())
+    else:
+        summary_filters &= Q(date__gte=today)
+
+    summary_scope = base_scope.filter(summary_filters)
     summary = {
         "total_appointments": summary_scope.count(),
         "today_appointments": base_scope.filter(date=today).count(),
@@ -436,7 +480,7 @@ def appointment_dashboard(request):
         "rescheduled_appointments": summary_scope.filter(status="Rescheduled").count(),
         "cancelled": summary_scope.filter(status="Cancelled").count(),
     }
- 
+
     # ---- resolve therapist names in one bulk Mongo round-trip -------------
     therapist_ids = set()
     for a in queryset:
@@ -444,7 +488,7 @@ def appointment_dashboard(request):
             therapist_ids.add(a.therapist_id)
         if a.rescheduled_therapist_id:
             therapist_ids.add(a.rescheduled_therapist_id)
- 
+
     name_map = {}
     if therapist_ids:
         for p in profile_collection.find(
@@ -452,7 +496,7 @@ def appointment_dashboard(request):
             {"employeeId": 1, "employeeName": 1},
         ):
             name_map[p.get("employeeId")] = p.get("employeeName")
- 
+
     data = []
     for a in queryset:
         # Effective therapist = who currently holds the slot: therapist_id
@@ -471,6 +515,8 @@ def appointment_dashboard(request):
             "therapist_name": name_map.get(effective_id, effective_id),
             "original_therapist_id": a.therapist_id,
             "original_therapist_name": name_map.get(a.therapist_id, a.therapist_id),
+            "slot_start_time": a.slot_start_time.strftime("%H:%M") if a.slot_start_time else None,
+            "slot_end_time": a.slot_end_time.strftime("%H:%M") if a.slot_end_time else None,
             "slot_time": _format_slot_time(a),
             "status": a.status,
         })
@@ -495,7 +541,8 @@ def enquiryform(request):
     POST -> create a new enquiry from the "+" Enquiry Form modal
     """
     if request.method == 'GET':
-        enquiries = EnquiryForm.objects.order_by('-enquiry_id')
+        booked_enquiry_ids = AppointmentSchedule.objects.filter(enquiry_id__isnull=False).exclude(status="Cancelled").values_list('enquiry_id', flat=True)
+        enquiries = EnquiryForm.objects.exclude(enquiry_id__in=list(booked_enquiry_ids)).order_by('-enquiry_id')
         serializer = EnquiryFormSerializer(enquiries, many=True)
         return Response({"data": serializer.data}, status=status.HTTP_200_OK)
 
@@ -529,10 +576,14 @@ def search_appointments(request):
     """
     q = request.query_params.get('q', '').strip()
     
-    # Exclude appointments that have already been registered
+    # 1. Exclude appointments that have already been registered (linked by ID)
     registered_ids = Registration.objects.filter(appointment_id__isnull=False).values_list('appointment_id', flat=True)
     qs = AppointmentSchedule.objects.filter(status__in=["Scheduled", "Rescheduled"]).exclude(appointment_id__in=list(registered_ids))
     
+    # 2. Exclude appointments that already have a registration number
+    qs = qs.exclude(registration_number__isnull=False).exclude(registration_number="")
+    
+    # 3. Apply search query
     if q:
         qs = qs.filter(
             Q(name_of_child__icontains=q) | 
@@ -540,6 +591,140 @@ def search_appointments(request):
             Q(father_name__icontains=q) |
             Q(mother_name__icontains=q)
         )
-    qs = qs.order_by('-date')[:50]
-    serializer = AppointmentScheduleSerializer(qs, many=True)
+    qs = qs.order_by('-date')[:100]
+    
+    # 4. Further filter in Python: exclude any appointment where name and mobile match an existing Registration record
+    registered_patients = Registration.objects.all().values('name_of_child', 'mother_phone_number', 'father_phone_number')
+    registered_set = set()
+    for reg in registered_patients:
+        name = reg.get('name_of_child', '').strip().lower() if reg.get('name_of_child') else ''
+        m_phone = reg.get('mother_phone_number', '').strip() if reg.get('mother_phone_number') else ''
+        f_phone = reg.get('father_phone_number', '').strip() if reg.get('father_phone_number') else ''
+        if name:
+            if m_phone:
+                registered_set.add((name, m_phone))
+            if f_phone:
+                registered_set.add((name, f_phone))
+                
+    filtered_list = []
+    for appt in qs:
+        appt_name = appt.name_of_child.strip().lower() if appt.name_of_child else ''
+        appt_phone = appt.mobile_number.strip() if appt.mobile_number else ""
+        if (appt_name, appt_phone) in registered_set:
+            continue
+        filtered_list.append(appt)
+        
+    serializer = AppointmentScheduleSerializer(filtered_list[:50], many=True)
     return Response(serializer.data)
+
+
+@api_view(['GET'])
+# @permission_classes([HasRolePermission])
+def appointment_report(request):
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+
+    # Date parsing
+    start_date = None
+    end_date = None
+    if start_date_str and end_date_str:
+        try:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    # 1. Enquiries query
+    enquiries = EnquiryForm.objects.all()
+    if start_date and end_date:
+        enquiries = enquiries.filter(date__range=[start_date, end_date])
+
+    # 2. Appointments query
+    appointments = AppointmentSchedule.objects.all()
+    if start_date and end_date:
+        appointments = appointments.filter(date__range=[start_date, end_date])
+
+    # 3. Registrations query
+    registrations = Registration.objects.all()
+    if start_date and end_date:
+        registrations = registrations.filter(date__range=[start_date, end_date])
+
+    # Calculate Enquiry counts
+    # A set of enquiry IDs that have any appointment booked
+    enquiry_ids_with_appointments = set(
+        AppointmentSchedule.objects.exclude(enquiry_id__isnull=True)
+        .values_list('enquiry_id', flat=True)
+    )
+
+    enquiry_converted_records = []
+    enquiry_pending_records = []
+    for enq in enquiries:
+        if enq.enquiry_id in enquiry_ids_with_appointments:
+            enquiry_converted_records.append(enq)
+        else:
+            enquiry_pending_records.append(enq)
+
+    # Calculate Appointment counts
+    appt_direct_records = []
+    appt_convert_from_enquiry_records = []
+    appt_convert_to_registration_records = []
+    appt_pending_non_registered_records = []
+
+    for appt in appointments:
+        # direct vs convert from enquiry
+        if appt.enquiry_id is not None:
+            appt_convert_from_enquiry_records.append(appt)
+        else:
+            appt_direct_records.append(appt)
+
+        # convert to registration vs pending non registered
+        if appt.registration_number and appt.registration_number.strip() != "":
+            appt_convert_to_registration_records.append(appt)
+        else:
+            if appt.status != "Cancelled":
+                appt_pending_non_registered_records.append(appt)
+
+    # Calculate Registration counts
+    # A set of registration numbers with any attendance entry
+    attendance_reg_nos = set(
+        PatientAttendance.objects.values_list('registration_number', flat=True)
+    ).union(
+        set(PatientSessionAttendance.objects.values_list('registration_number', flat=True))
+    )
+
+    reg_attendance_records = []
+    reg_non_attendance_records = []
+    for reg in registrations:
+        if reg.registration_number in attendance_reg_nos:
+            reg_attendance_records.append(reg)
+        else:
+            reg_non_attendance_records.append(reg)
+
+    return Response({
+        "success": True,
+        "enquiry": {
+            "total": enquiries.count(),
+            "converted": len(enquiry_converted_records),
+            "pending": len(enquiry_pending_records),
+            "converted_list": EnquiryFormSerializer(enquiry_converted_records, many=True).data,
+            "pending_list": EnquiryFormSerializer(enquiry_pending_records, many=True).data,
+        },
+        "appointment": {
+            "total": appointments.count(),
+            "direct": len(appt_direct_records),
+            "convert_from_enquiry": len(appt_convert_from_enquiry_records),
+            "convert_to_registration": len(appt_convert_to_registration_records),
+            "pending_non_registered": len(appt_pending_non_registered_records),
+            "direct_list": AppointmentScheduleSerializer(appt_direct_records, many=True).data,
+            "convert_from_enquiry_list": AppointmentScheduleSerializer(appt_convert_from_enquiry_records, many=True).data,
+            "convert_to_registration_list": AppointmentScheduleSerializer(appt_convert_to_registration_records, many=True).data,
+            "pending_non_registered_list": AppointmentScheduleSerializer(appt_pending_non_registered_records, many=True).data,
+        },
+        "registration": {
+            "total": registrations.count(),
+            "attendance": len(reg_attendance_records),
+            "non_attendance": len(reg_non_attendance_records),
+            "attendance_list": RegistrationSerializer(reg_attendance_records, many=True).data,
+            "non_attendance_list": RegistrationSerializer(reg_non_attendance_records, many=True).data,
+        }
+    })

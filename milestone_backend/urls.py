@@ -74,6 +74,7 @@ urlpatterns = [
     path("get_psychological_patients/", Assessment.get_psychological_patients),
     path("get_all_category_patients/", Assessment.get_all_category_patients),
     path('clinical/', Assessment.clinical_psychology_assessment),
+    path('behavioral-observation-options/', Assessment.behavioral_observation_options),
     path('ot/', Assessment.occupational_therapy_assessment),
     path('speech/', Assessment.speech_therapy_assessment),
     path('physio/', Assessment.physiotherapy_assessment),
@@ -122,6 +123,7 @@ urlpatterns = [
     path('update_appointment_status/', appoinmentschedule.update_appointment_status, name='update_appointment_status'),
     path('appointment_dashboard/', appoinmentschedule.appointment_dashboard, name='appointment_dashboard'),
     path('search_appointments/', appoinmentschedule.search_appointments, name='search_appointments'),
+    path('appointment-report/', appoinmentschedule.appointment_report, name='appointment_report'),
 
     #Enquiry form
     path('enquiryform/', appoinmentschedule.enquiryform, name='enquiryform'),

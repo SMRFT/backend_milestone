@@ -50,6 +50,7 @@ urlpatterns = [
     path('get-cbcl/<str:childName>/', cbcl.get_cbcl_data, name='get_cbcl_by_patient'),
     path('pending-payments/', therapybilling.pending_payment_report, name='pending-payments'),
     path('get_all_patient_attendance/', attendance.get_all_patient_attendance, name='get_all_patient_attendance'),
+    path('patient-month-session-counts/', attendance.get_patient_month_session_counts, name='patient_month_session_counts'),
     path('therapy-details/', attendance.get_therapy_details, name='therapy-details'),
     # path('edit_patient_attendance/', patientdetails.edit_patient_attendance, name='edit_patient_attendance'),
     # path('delete_patient_attendance/', patientdetails.delete_patient_attendance, name='delete_patient_attendance'),
@@ -112,6 +113,7 @@ urlpatterns = [
     path('session-attendance/slots/', sessionattendance.get_active_slots, name='session_attendance_slots'),
     path('session-attendance/load/', sessionattendance.load_session_attendance, name='session_attendance_load'),
     path('session-attendance/save/', sessionattendance.save_session_attendance, name='session_attendance_save'),
+    path('session-attendance/confirm/', sessionattendance.confirm_session_attendance, name='session_attendance_confirm'),
     path('session-attendance/underattended/', sessionattendance.get_underattended_patients, name='session_attendance_underattended'),
     path('session-attendance/monthly-report/', sessionattendance.get_monthly_attendance_report, name='session_attendance_monthly_report'),
 

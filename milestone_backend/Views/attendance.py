@@ -305,6 +305,71 @@ def get_all_attendance_patients(request):
     except Exception as e:
         return Response({"status": "error", "message": str(e)}, status=500)
 
+import re
+
+def get_month_session_attendance_total(registration_number, target_year, target_month):
+    if not registration_number:
+        return 0, {}, {}
+
+    clean_reg = str(registration_number).strip()
+    if not clean_reg:
+        return 0, {}, {}
+
+    db_handle = client[db_name]
+    psa_collection = db_handle['milestone_backend_patientsessionattendance']
+
+    query = {
+        "$and": [
+            {
+                "$or": [
+                    {"registration_number": clean_reg},
+                    {"registration_number": {"$regex": f"^{re.escape(clean_reg)}$", "$options": "i"}}
+                ]
+            },
+            {
+                "$or": [
+                    {"is_active": True},
+                    {"is_active": {"$exists": False}}
+                ]
+            }
+        ]
+    }
+
+    records = list(psa_collection.find(query))
+
+    total_sessions = 0
+    counts_by_name = {}
+    counts_by_id = {}
+
+    for r in records:
+        att_date = r.get("attendance_date")
+        rec_year, rec_month = None, None
+
+        if isinstance(att_date, datetime):
+            rec_year, rec_month = att_date.year, att_date.month
+        elif isinstance(att_date, date):
+            rec_year, rec_month = att_date.year, att_date.month
+        elif isinstance(att_date, str):
+            try:
+                parsed_dt = datetime.strptime(att_date[:10], '%Y-%m-%d')
+                rec_year, rec_month = parsed_dt.year, parsed_dt.month
+            except:
+                continue
+
+        if rec_year == target_year and rec_month == target_month:
+            sess = int(r.get("sessions_attended") or 1)
+            total_sessions += sess
+
+            tname = r.get("therapy_name")
+            tid = r.get("therapy_id")
+            if tname:
+                counts_by_name[tname] = counts_by_name.get(tname, 0) + sess
+            if tid:
+                counts_by_id[tid] = counts_by_id.get(tid, 0) + sess
+
+    return total_sessions, counts_by_name, counts_by_id
+
+
 @api_view(['POST'])
 @permission_classes([HasRolePermission])
 def add_patient_attendance(request):
@@ -370,6 +435,30 @@ def add_patient_attendance(request):
     ).exists():
         return Response(
             {"error": "Attendance already exists for this date."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # ================================
+    #   SESSION ATTENDANCE MINIMUM CHECK
+    # ================================
+    total_logged_sessions, _, _ = get_month_session_attendance_total(
+        registration_number, attendance_date.year, attendance_date.month
+    )
+
+    submitted_total_sessions = sum(
+        int(t.get("sesion_per_therapy") or t.get("sessions_per_month") or 0)
+        for t in therapy_details
+        if isinstance(t, dict)
+    )
+    if not submitted_total_sessions and session:
+        try:
+            submitted_total_sessions = int(session)
+        except:
+            submitted_total_sessions = 0
+
+    if total_logged_sessions > 0 and submitted_total_sessions < total_logged_sessions:
+        return Response(
+            {"error": f"A total of {total_logged_sessions} session(s) have already been logged in Session Attendance for this month. Total monthly sessions must be at least {total_logged_sessions}."},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -671,6 +760,41 @@ db = client["Milestone"]
 
 # clean_mongo_object is defined at the top of this file
     
+@api_view(['GET'])
+@permission_classes([HasRolePermission])
+def get_patient_month_session_counts(request):
+    try:
+        registration_number = request.GET.get('registration_number', '')
+        date_str = request.GET.get('attendance_date') or request.GET.get('date')
+        
+        if not registration_number or not date_str:
+            return Response(
+                {"error": "registration_number and date/attendance_date are required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        try:
+            date_obj = datetime.strptime(date_str[:10], '%Y-%m-%d').date()
+        except ValueError:
+            return Response(
+                {"error": "Invalid date format. Use YYYY-MM-DD."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        total_logged_sessions, counts_by_name, counts_by_id = get_month_session_attendance_total(
+            registration_number, date_obj.year, date_obj.month
+        )
+        
+        return Response({
+            "status": "success",
+            "total_logged_sessions": total_logged_sessions,
+            "counts_by_id": counts_by_id,
+            "counts_by_name": counts_by_name
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(["PATCH"])
 @permission_classes([HasRolePermission])
 def update_attendance_by_reg_and_date(request):
@@ -689,7 +813,6 @@ def update_attendance_by_reg_and_date(request):
         except ValueError:
             return Response({"status": "error", "message": "Invalid attendance_date format."}, status=400)
 
-        # --- MISSING BLOCK RESTORED HERE ---
         # Find attendance record
         attendance = attendance_col.find_one({
             "registration_number": registration_number,
@@ -702,7 +825,39 @@ def update_attendance_by_reg_and_date(request):
 
         if not attendance:
             return Response({"status": "error", "message": "Record not found."}, status=404)
-        # -----------------------------------
+
+        if "therapy_details" in request.data or "session" in request.data:
+            total_logged, _, _ = get_month_session_attendance_total(
+                registration_number, date_obj.year, date_obj.month
+            )
+
+            t_details_input = request.data.get("therapy_details", [])
+            if isinstance(t_details_input, str):
+                try:
+                    t_details_list = json.loads(t_details_input)
+                except:
+                    t_details_list = []
+            elif isinstance(t_details_input, list):
+                t_details_list = t_details_input
+            else:
+                t_details_list = []
+
+            submitted_total = sum(
+                int(t.get("sesion_per_therapy") or t.get("sessions_per_month") or 0)
+                for t in t_details_list
+                if isinstance(t, dict)
+            )
+            if not submitted_total and "session" in request.data:
+                try:
+                    submitted_total = int(request.data["session"])
+                except:
+                    submitted_total = 0
+
+            if total_logged > 0 and submitted_total < total_logged:
+                return Response(
+                    {"status": "error", "message": f"A total of {total_logged} session(s) have already been logged in Session Attendance for this month. Total monthly sessions must be at least {total_logged}."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # 1. Define ALL fields you want to allow updating
         allowed_fields = [

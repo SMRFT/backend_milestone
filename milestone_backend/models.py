@@ -824,6 +824,10 @@ class PatientSessionAttendance(AuditModel):
     attended_slot = models.CharField(max_length=50)  # slot_id
     slot_label = models.CharField(max_length=100)
     therapist = models.CharField(max_length=50, blank=True, null=True, default='')
+    therapist_id = models.CharField(max_length=50, blank=True, null=True, default='')
+    is_confirmed = models.BooleanField(default=False)
+    confirmed_by = models.CharField(max_length=100, blank=True, null=True, default='')
+    confirmed_date = models.DateTimeField(blank=True, null=True)
     sessions_attended = models.IntegerField(default=1)
     is_active = models.BooleanField(default=True)
 

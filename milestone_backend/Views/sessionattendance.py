@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
 from django.db import connection
-from datetime import datetime
+from datetime import date, datetime
 import json
 
 from ..models import DailyTimeSlot, PatientSessionAttendance, Registration, TherapyDetails
@@ -52,24 +52,42 @@ def load_session_attendance(request):
             "is_active": True
         }, sort=[("attendance_date", -1)])
 
-        if not attendance_doc:
-            return Response({
-                "status": "error",
-                "message": "No attendance record found for this patient in this month.",
-                "data": []
-            }, status=status.HTTP_404_NOT_FOUND)
+        has_monthly_attendance = bool(attendance_doc)
 
-        # Parse therapy_details from attendance
-        therapy_details_raw = attendance_doc.get("therapy_details")
-        if isinstance(therapy_details_raw, str):
+        # Parse therapy_details from attendance if exists
+        total_planned_sessions = 0
+        if attendance_doc:
             try:
-                therapy_details = json.loads(therapy_details_raw)
+                total_planned_sessions = int(attendance_doc.get("session") or 0)
             except:
+                total_planned_sessions = 0
+
+            therapy_details_raw = attendance_doc.get("therapy_details")
+            if isinstance(therapy_details_raw, str):
+                try:
+                    therapy_details = json.loads(therapy_details_raw)
+                except:
+                    therapy_details = []
+            elif isinstance(therapy_details_raw, list):
+                therapy_details = therapy_details_raw
+            else:
                 therapy_details = []
-        elif isinstance(therapy_details_raw, list):
-            therapy_details = therapy_details_raw
-        else:
-            therapy_details = []
+
+            sum_planned = sum(
+                int(t.get("sesion_per_therapy") or t.get("sessions_per_month") or 0)
+                for t in therapy_details
+                if isinstance(t, dict)
+            )
+            if sum_planned > total_planned_sessions:
+                total_planned_sessions = sum_planned
+
+        # Fetch sessions for other days in this month to calculate total projected sessions
+        other_days_sessions = PatientSessionAttendance.objects.filter(
+            registration_number=registration_number,
+            attendance_date__range=(date_start_month.date(), date_end_month.date())
+        ).exclude(attendance_date=date_obj)
+
+        other_days_total = sum(int(r.sessions_attended or 1) for r in other_days_sessions if r.is_active)
 
         # 2. Fetch all active DailyTimeSlots
         all_slots = DailyTimeSlot.objects.all()
@@ -79,7 +97,18 @@ def load_session_attendance(request):
 
         # 3. Fetch all TherapyDetails for mapping name -> id using ORM
         therapies_list = TherapyDetails.objects.all()
-        therapy_map = {t.therapy_name: t.therapy_id for t in therapies_list}
+
+        # Fetch consulting doctors to map therapist name <-> ID
+        from milestone_backend.models import ConsultingDoctor
+        doctors_qs = ConsultingDoctor.objects.all()
+        id_to_name = {}
+        name_to_id = {}
+        for d in doctors_qs:
+            emp_id = str(getattr(d, 'employee_id', '') or '').strip()
+            doc_name = str(getattr(d, 'name', '') or '').strip()
+            if emp_id and doc_name:
+                id_to_name[emp_id] = doc_name
+                name_to_id[doc_name] = emp_id
 
         # 4. Fetch existing PatientSessionAttendance records for this exact date
         existing_records_qs = PatientSessionAttendance.objects.filter(
@@ -88,17 +117,23 @@ def load_session_attendance(request):
         )
         existing_records = [r for r in existing_records_qs if r.is_active]
 
-        existing_map = {}
-        for r in existing_records:
-            existing_map[r.therapy_id] = r
+        existing_map = {r.therapy_id: r for r in existing_records}
 
-        # 5. Build list of therapies with current/default state
+        # 5. Fetch all PatientSessionAttendance records in this month to compute monthly totals so far
+        all_month_sessions_qs = PatientSessionAttendance.objects.filter(
+            registration_number=registration_number,
+            attendance_date__range=(date_start_month.date(), date_end_month.date())
+        )
+        month_totals_map = {}
+        for r in all_month_sessions_qs:
+            if r.is_active:
+                month_totals_map[r.therapy_id] = month_totals_map.get(r.therapy_id, 0) + int(r.sessions_attended or 1)
+
+        # 6. Build list of therapies with current/default state out of all available therapies
         result_therapies = []
-        for t in therapy_details:
-            if not isinstance(t, dict):
-                continue
-            name = t.get("therapy_name")
-            tid = therapy_map.get(name) or t.get("therapy_type") or ""
+        for t in therapies_list:
+            name = t.therapy_name
+            tid = t.therapy_id
             
             existing = existing_map.get(tid)
             
@@ -106,7 +141,9 @@ def load_session_attendance(request):
                 attended = True
                 attended_slot = existing.attended_slot
                 slot_label = existing.slot_label
-                therapist = existing.therapist or ""
+                raw_t = existing.therapist_id or existing.therapist or ""
+                # Prefer employee_id for the dropdown value
+                therapist = existing.therapist_id or name_to_id.get(existing.therapist) or existing.therapist or ""
                 sessions_attended = existing.sessions_attended
                 session_id = existing.session_id or ""
             else:
@@ -125,11 +162,16 @@ def load_session_attendance(request):
                 "slot_label": slot_label,
                 "therapist": therapist,
                 "sessions_attended": sessions_attended,
-                "session_id": session_id
+                "session_id": session_id,
+                "max_allowed_sessions": total_planned_sessions,
+                "month_total_sessions": month_totals_map.get(tid, 0)
             })
 
         return Response({
             "status": "success",
+            "has_monthly_attendance": has_monthly_attendance,
+            "total_planned_sessions": total_planned_sessions,
+            "other_days_total": other_days_total,
             "therapies": result_therapies,
             "slots": slots_data
         }, status=status.HTTP_200_OK)
@@ -145,7 +187,7 @@ def load_session_attendance(request):
 def save_session_attendance(request):
     try:
         data = request.data
-        employee_id = data.get("auth-user-id","system")
+        employee_id = data.get("auth-user-id", "system")
 
         registration_number = data.get('registration_number')
         date_str = data.get('attendance_date')
@@ -192,28 +234,102 @@ def save_session_attendance(request):
             "is_active": True
         }, sort=[("attendance_date", -1)])
 
-        if not attendance_doc:
-            return Response(
-                {"error": "No PatientAttendance record found for this patient in this month."},
-                status=status.HTTP_404_NOT_FOUND
+        therapies_list = TherapyDetails.objects.all()
+        therapy_map = {t.therapy_name: t.therapy_id for t in therapies_list}
+
+        # Calculate total planned sessions in monthly attendance doc
+        total_planned_sessions = 0
+        if attendance_doc:
+            try:
+                total_planned_sessions = int(attendance_doc.get("session") or 0)
+            except:
+                total_planned_sessions = 0
+
+            curr_details_raw = attendance_doc.get("therapy_details")
+            if isinstance(curr_details_raw, str):
+                try:
+                    curr_details = json.loads(curr_details_raw)
+                except:
+                    curr_details = []
+            elif isinstance(curr_details_raw, list):
+                curr_details = curr_details_raw
+            else:
+                curr_details = []
+
+            sum_details_sessions = sum(
+                int(item.get("sesion_per_therapy") or item.get("sessions_per_month") or 0)
+                for item in curr_details
+                if isinstance(item, dict)
             )
+            if sum_details_sessions > total_planned_sessions:
+                total_planned_sessions = sum_details_sessions
+
+        # Fetch sessions for other days in this month to calculate total projected sessions
+        other_days_sessions = PatientSessionAttendance.objects.filter(
+            registration_number=registration_number,
+            attendance_date__range=(date_start_month.date(), date_end_month.date())
+        ).exclude(attendance_date=date_obj)
+
+        other_days_total = sum(int(r.sessions_attended or 1) for r in other_days_sessions if r.is_active)
+        new_day_total = sum(int(ct.get("sessions_attended", 1)) for ct in checked_therapies)
+        total_projected = other_days_total + new_day_total
+
+        # Validate overall total against monthly limit if monthly attendance exists
+        if attendance_doc and total_planned_sessions > 0:
+            if total_projected > total_planned_sessions:
+                return Response(
+                    {"error": f"Cannot add sessions: total sessions for this month ({total_projected}) would exceed the total limit of {total_planned_sessions} sessions set in monthly attendance."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # 2. Save PatientSessionAttendance for this exact date using ORM
-        # Fetch existing entries before deleting to preserve their session_id
         existing_sessions = PatientSessionAttendance.objects.filter(
             registration_number=registration_number,
             attendance_date=date_obj
         )
-        existing_session_id_map = {r.therapy_id: r.session_id for r in existing_sessions if r.session_id}
+        existing_session_map = {r.therapy_id: r for r in existing_sessions}
         
-        # Delete existing entries
+        # Delete existing entries for this date
         existing_sessions.delete()
+
+        # Fetch consulting doctors to map therapist name <-> ID
+        from milestone_backend.models import ConsultingDoctor
+        doctors_qs = ConsultingDoctor.objects.all()
+        id_to_name = {}
+        name_to_id = {}
+        for d in doctors_qs:
+            emp_id = str(getattr(d, 'employee_id', '') or '').strip()
+            doc_name = str(getattr(d, 'name', '') or '').strip()
+            if emp_id and doc_name:
+                id_to_name[emp_id] = doc_name
+                name_to_id[doc_name] = emp_id
 
         # Insert new ones for checked therapies on this exact date
         for ct in checked_therapies:
             tid = ct.get("therapy_id")
-            preserved_session_id = existing_session_id_map.get(tid)
-            
+            existing_rec = existing_session_map.get(tid)
+            preserved_session_id = existing_rec.session_id if existing_rec else None
+            preserved_is_confirmed = existing_rec.is_confirmed if existing_rec else False
+            preserved_confirmed_by = existing_rec.confirmed_by if existing_rec else ""
+            preserved_confirmed_date = existing_rec.confirmed_date if existing_rec else None
+
+            raw_therapist = str(ct.get("therapist", "")).strip()
+            raw_therapist_id = str(ct.get("therapist_id", "")).strip() or raw_therapist
+
+            # Determine therapist name and therapist ID cleanly
+            if raw_therapist in id_to_name:
+                t_id = raw_therapist
+                t_name = id_to_name[raw_therapist]
+            elif raw_therapist in name_to_id:
+                t_id = name_to_id[raw_therapist]
+                t_name = raw_therapist
+            elif raw_therapist_id in id_to_name:
+                t_id = raw_therapist_id
+                t_name = id_to_name[raw_therapist_id]
+            else:
+                t_id = raw_therapist_id
+                t_name = raw_therapist
+
             PatientSessionAttendance.objects.create(
                 registration_number=registration_number,
                 attendance_date=date_obj,
@@ -221,7 +337,11 @@ def save_session_attendance(request):
                 therapy_name=ct.get("therapy_name"),
                 attended_slot=ct.get("attended_slot"),
                 slot_label=ct.get("slot_label"),
-                therapist=ct.get("therapist", ""),
+                therapist=t_name,
+                therapist_id=t_id,
+                is_confirmed=preserved_is_confirmed,
+                confirmed_by=preserved_confirmed_by,
+                confirmed_date=preserved_confirmed_date,
                 sessions_attended=int(ct.get("sessions_attended", 1)),
                 session_id=preserved_session_id,
                 created_by=employee_id,
@@ -229,64 +349,61 @@ def save_session_attendance(request):
                 is_active=True
             )
 
-        # 3. Query all PatientSessionAttendance records for this patient in the entire month
-        all_month_sessions_qs = PatientSessionAttendance.objects.filter(
-            registration_number=registration_number,
-            attendance_date__range=(date_start_month.date(), date_end_month.date())
-        )
-        all_month_sessions = [r for r in all_month_sessions_qs if r.is_active]
+        # 3. If attendance_doc exists, update monthly PatientAttendance record
+        if attendance_doc:
+            all_month_sessions_qs = PatientSessionAttendance.objects.filter(
+                registration_number=registration_number,
+                attendance_date__range=(date_start_month.date(), date_end_month.date())
+            )
+            all_month_sessions = [r for r in all_month_sessions_qs if r.is_active]
 
-        monthly_sessions_map = {}
-        for r in all_month_sessions:
-            tid = r.therapy_id
-            sess = int(r.sessions_attended or 1)
-            monthly_sessions_map[tid] = monthly_sessions_map.get(tid, 0) + sess
+            monthly_sessions_map = {}
+            for r in all_month_sessions:
+                tid = r.therapy_id
+                sess = int(r.sessions_attended or 1)
+                monthly_sessions_map[tid] = monthly_sessions_map.get(tid, 0) + sess
 
-        # 4. Update the monthly PatientAttendance record
-        curr_details_raw = attendance_doc.get("therapy_details")
-        if isinstance(curr_details_raw, str):
-            try:
-                curr_details = json.loads(curr_details_raw)
-            except:
+            curr_details_raw = attendance_doc.get("therapy_details")
+            if isinstance(curr_details_raw, str):
+                try:
+                    curr_details = json.loads(curr_details_raw)
+                except:
+                    curr_details = []
+            elif isinstance(curr_details_raw, list):
+                curr_details = curr_details_raw
+            else:
                 curr_details = []
-        elif isinstance(curr_details_raw, list):
-            curr_details = curr_details_raw
-        else:
-            curr_details = []
 
-        therapies_list = TherapyDetails.objects.all()
-        therapy_map = {t.therapy_name: t.therapy_id for t in therapies_list}
+            updated_details = []
+            for t in curr_details:
+                if not isinstance(t, dict):
+                    continue
+                name = t.get("therapy_name")
+                tid = t.get("therapy_id") or t.get("therapy_type") or ""
+                if not tid:
+                    tid = therapy_map.get(name) or ""
+                
+                monthly_sum = monthly_sessions_map.get(tid, 0)
+                
+                t["therapy_id"] = tid
+                t["sessions_attended"] = monthly_sum
+                t["no_of_sessions_attended"] = monthly_sum
+                t["total_no_of_session_attended"] = monthly_sum
+                updated_details.append(t)
 
-        updated_details = []
-        for t in curr_details:
-            if not isinstance(t, dict):
-                continue
-            name = t.get("therapy_name")
-            tid = t.get("therapy_id") or t.get("therapy_type") or ""
-            if not tid:
-                tid = therapy_map.get(name) or ""
-            
-            monthly_sum = monthly_sessions_map.get(tid, 0)
-            
-            t["therapy_id"] = tid
-            t["sessions_attended"] = monthly_sum
-            t["no_of_sessions_attended"] = monthly_sum
-            t["total_no_of_session_attended"] = monthly_sum
-            updated_details.append(t)
+            if isinstance(curr_details_raw, str):
+                updated_details_val = json.dumps(updated_details)
+            else:
+                updated_details_val = updated_details
 
-        if isinstance(curr_details_raw, str):
-            updated_details_val = json.dumps(updated_details)
-        else:
-            updated_details_val = updated_details
-
-        collection.update_one(
-            {"_id": attendance_doc["_id"]},
-            {"$set": {
-                "therapy_details": updated_details_val,
-                "lastmodified_by": employee_id,
-                "lastmodified_date": datetime.now()
-            }}
-        )
+            collection.update_one(
+                {"_id": attendance_doc["_id"]},
+                {"$set": {
+                    "therapy_details": updated_details_val,
+                    "lastmodified_by": employee_id,
+                    "lastmodified_date": datetime.now()
+                }}
+            )
 
         return Response({
             "status": "success",
@@ -329,42 +446,42 @@ def get_underattended_patients(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        import calendar
-        _, last_day = calendar.monthrange(year, month)
-        start_datetime = datetime(year, month, 1, 0, 0, 0)
-        end_datetime = datetime(year, month, last_day, 23, 59, 59)
-
         db = connection.cursor().db.connection
         collection = db['milestone_backend_patientattendance']
 
-        # 1. Fetch all PatientAttendance records for this month using PyMongo
-        attendance_cursor = collection.find({
-            "attendance_date": {
-                "$gte": start_datetime,
-                "$lte": end_datetime
-            },
-            "is_active": True
-        })
+        # 1. Fetch all PatientAttendance records using PyMongo and filter by target month/year in Python
+        attendance_cursor = list(collection.find({
+            "$or": [
+                {"is_active": True},
+                {"is_active": {"$exists": False}}
+            ]
+        }))
 
-        # 2. Fetch all PatientSessionAttendance records for this month using ORM
-        session_records_qs = PatientSessionAttendance.objects.filter(
-            attendance_date__range=(start_datetime.date(), end_datetime.date())
-        )
-        session_records = [r for r in session_records_qs if r.is_active]
-
-        # Map: (reg_num, therapy_name) -> total sessions from session attendance
-        session_attended_map = {}
-        for r in session_records:
-            reg = r.registration_number
-            tname = r.therapy_name
-            sess = int(r.sessions_attended or 1)
-            key = (reg, tname)
-            session_attended_map[key] = session_attended_map.get(key, 0) + sess
-
-        # Group daily attendance records by patient
-        patient_therapies = {}
+        patient_planned_therapies = {}
         for att in attendance_cursor:
-            reg = att.get("registration_number")
+            att_date = att.get("attendance_date")
+            rec_year, rec_month = None, None
+            if isinstance(att_date, datetime):
+                rec_year, rec_month = att_date.year, att_date.month
+            elif isinstance(att_date, date):
+                rec_year, rec_month = att_date.year, att_date.month
+            elif isinstance(att_date, str):
+                try:
+                    parsed_dt = datetime.strptime(att_date[:10], '%Y-%m-%d')
+                    rec_year, rec_month = parsed_dt.year, parsed_dt.month
+                except:
+                    continue
+
+            if rec_year != year or rec_month != month:
+                continue
+
+            reg = str(att.get("registration_number", "")).strip()
+            if not reg:
+                continue
+
+            if reg not in patient_planned_therapies:
+                patient_planned_therapies[reg] = {}
+
             t_details_raw = att.get("therapy_details")
             if isinstance(t_details_raw, str):
                 try:
@@ -375,78 +492,82 @@ def get_underattended_patients(request):
                 t_details = t_details_raw
             else:
                 t_details = []
-            
-            if not isinstance(t_details, list):
+
+            if isinstance(t_details, list):
+                for t in t_details:
+                    if isinstance(t, dict):
+                        tname = t.get("therapy_name")
+                        tid = t.get("therapy_id") or t.get("therapy_type") or ""
+                        sched = int(t.get("sesion_per_therapy") or t.get("sessions_per_month") or 0)
+                        if tname:
+                            patient_planned_therapies[reg][tname] = {
+                                "scheduled": sched,
+                                "therapy_id": tid
+                            }
+
+        # 2. Fetch all PatientSessionAttendance records for target month/year
+        session_records_qs = PatientSessionAttendance.objects.all()
+        session_attended_map = {}
+        for r in session_records_qs:
+            if not r.is_active:
                 continue
+            att_d = r.attendance_date
+            if not att_d:
+                continue
+            if att_d.year == year and att_d.month == month:
+                reg = str(r.registration_number or "").strip()
+                tname = r.therapy_name
+                sess = int(r.sessions_attended or 1)
+                key = (reg, tname)
+                session_attended_map[key] = session_attended_map.get(key, 0) + sess
 
-            if reg not in patient_therapies:
-                patient_therapies[reg] = {}
-
-            for t in t_details:
-                if not isinstance(t, dict):
-                    continue
-                name = t.get("therapy_name")
-                tid = t.get("therapy_id") or t.get("therapy_type") or ""
-                scheduled = int(t.get("sesion_per_therapy") or t.get("sessions_per_month") or 0)
-                
-                # Check for daily recorded sessions attended
-                daily_sess = int(t.get("total_no_of_session_attended") or t.get("sessions_attended") or 0)
-
-                if name not in patient_therapies[reg]:
-                    patient_therapies[reg][name] = {
-                        "scheduled": scheduled,
-                        "daily_attended": 0,
-                        "presence_count": 0,
-                        "therapy_id": tid
-                    }
-                
-                if scheduled > patient_therapies[reg][name]["scheduled"]:
-                    patient_therapies[reg][name]["scheduled"] = scheduled
-                
-                patient_therapies[reg][name]["daily_attended"] += daily_sess
-                patient_therapies[reg][name]["presence_count"] += 1
-                if tid and not patient_therapies[reg][name]["therapy_id"]:
-                    patient_therapies[reg][name]["therapy_id"] = tid
-
-        # 3. Fetch patient details (names and dob)
-        reg_numbers = list(patient_therapies.keys())
-        registrations = Registration.objects.filter(registration_number__in=reg_numbers)
-        patient_names = {r.registration_number: r.name_of_child for r in registrations}
-        patient_dobs = {r.registration_number: (r.dob[:10] if isinstance(r.dob, str) and r.dob else (r.dob.strftime('%Y-%m-%d') if r.dob else "N/A")) for r in registrations}
+        # 3. Fetch ALL registered patients
+        all_registrations = list(Registration.objects.all().order_by('name_of_child'))
 
         result = []
-        for reg, therapies_dict in patient_therapies.items():
-            patient_name = patient_names.get(reg, "Unknown Patient")
-            dob = patient_dobs.get(reg, "N/A")
+        for r in all_registrations:
+            reg = str(r.registration_number or "").strip()
+            if not reg:
+                continue
+            patient_name = r.name_of_child or "Unknown Patient"
             
-            underattended_therapies = []
-            for tname, data in therapies_dict.items():
-                scheduled = data["scheduled"]
-                
-                key = (reg, tname)
-                if key in session_attended_map:
-                    attended = session_attended_map[key]
-                elif data["daily_attended"] > 0:
-                    attended = data["daily_attended"]
+            if r.dob:
+                if isinstance(r.dob, str):
+                    dob = r.dob[:10]
                 else:
-                    attended = data["presence_count"]
+                    dob = r.dob.strftime('%Y-%m-%d')
+            else:
+                dob = "N/A"
+            
+            planned_map = patient_planned_therapies.get(reg, {})
+            
+            # Combine all therapy names for this child (either planned in monthly attendance or logged in session attendance)
+            all_therapies_for_child = set(planned_map.keys())
+            for (s_reg, s_tname) in session_attended_map.keys():
+                if s_reg == reg and s_tname:
+                    all_therapies_for_child.add(s_tname)
 
-                if scheduled > attended:
-                    underattended_therapies.append({
-                        "therapy_id": data["therapy_id"],
-                        "therapy_name": tname,
-                        "scheduled_sessions": scheduled,
-                        "attended_sessions": attended,
-                        "pending_sessions": scheduled - attended
-                    })
+            underattended_therapies = []
+            for tname in sorted(all_therapies_for_child):
+                planned_info = planned_map.get(tname, {})
+                scheduled = planned_info.get("scheduled", 0)
+                tid = planned_info.get("therapy_id", "")
+                attended = session_attended_map.get((reg, tname), 0)
 
-            if underattended_therapies:
-                result.append({
-                    "registration_number": reg,
-                    "patient_name": patient_name,
-                    "dob": dob,
-                    "underattended_therapies": underattended_therapies
+                underattended_therapies.append({
+                    "therapy_id": tid,
+                    "therapy_name": tname,
+                    "scheduled_sessions": scheduled,
+                    "attended_sessions": attended,
+                    "pending_sessions": max(0, scheduled - attended)
                 })
+
+            result.append({
+                "registration_number": reg,
+                "patient_name": patient_name,
+                "dob": dob,
+                "underattended_therapies": underattended_therapies
+            })
 
         return Response({
             "status": "success",
@@ -492,15 +613,17 @@ def get_monthly_attendance_report(request):
         registrations = Registration.objects.filter(registration_number__in=reg_numbers)
         patient_names = {r.registration_number: r.name_of_child for r in registrations}
 
-        # Get consulting doctors to map therapist employee_id to name
+        # Get consulting doctors to map therapist employee_id <-> name
         from milestone_backend.models import ConsultingDoctor
         doctors = ConsultingDoctor.objects.all()
-        doctor_map = {}
+        id_to_name = {}
+        name_to_id = {}
         for d in doctors:
-            emp_id = getattr(d, 'employee_id', None)
-            doc_name = getattr(d, 'name', None)
+            emp_id = str(getattr(d, 'employee_id', '') or '').strip()
+            doc_name = str(getattr(d, 'name', '') or '').strip()
             if emp_id and doc_name:
-                doctor_map[emp_id] = doc_name
+                id_to_name[emp_id] = doc_name
+                name_to_id[doc_name] = emp_id
 
         matrix_data = {}
         for r in records:
@@ -508,8 +631,22 @@ def get_monthly_attendance_report(request):
             tname = r.therapy_name
             day = r.attendance_date.day
             slot = r.slot_label or r.attended_slot or ""
-            therapist_id = r.therapist or ""
-            therapist_name = doctor_map.get(therapist_id, therapist_id)
+            
+            raw_tid = str(getattr(r, 'therapist_id', '') or '').strip()
+            raw_tname = str(r.therapist or '').strip()
+            
+            resolved_name = (
+                id_to_name.get(raw_tname) or
+                id_to_name.get(raw_tid) or
+                (raw_tname if raw_tname and raw_tname not in id_to_name else None) or
+                raw_tid
+            )
+
+            resolved_id = (
+                raw_tid or
+                name_to_id.get(raw_tname) or
+                raw_tname
+            )
             
             key = (reg, tname)
             if key not in matrix_data:
@@ -526,11 +663,21 @@ def get_monthly_attendance_report(request):
             
             matrix_data[key]["days"][day_str].append({
                 "slot": slot,
-                "therapist": therapist_name,
-                "session_id": r.session_id or ""
+                "therapist": resolved_name,
+                "therapist_id": resolved_id,
+                "session_id": r.session_id or "",
+                "is_confirmed": bool(r.is_confirmed),
+                "confirmed_by": r.confirmed_by or "",
+                "confirmed_date": r.confirmed_date.strftime('%Y-%m-%d %H:%M') if r.confirmed_date else ""
             })
 
         result = list(matrix_data.values())
+        result.sort(key=lambda x: (
+            str(x.get("patient_name", "")).lower(),
+            str(x.get("registration_number", "")).lower(),
+            str(x.get("therapy_name", "")).lower()
+        ))
+
         return Response({
             "status": "success",
             "month": month,
@@ -542,5 +689,38 @@ def get_monthly_attendance_report(request):
     except Exception as e:
         import traceback
         print("Error in get_monthly_attendance_report:", traceback.format_exc())
+        return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST', 'PATCH'])
+def confirm_session_attendance(request):
+    try:
+        session_id = request.data.get('session_id')
+        session_ids = request.data.get('session_ids', [])
+        if session_id and session_id not in session_ids:
+            session_ids.append(session_id)
+            
+        employee_id = request.data.get('employee_id', '') or request.headers.get('employee_id', '')
+
+        if not session_ids:
+            return Response({"status": "error", "message": "No session_id provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        now_time = timezone.now()
+        updated_count = PatientSessionAttendance.objects.filter(
+            session_id__in=session_ids
+        ).update(
+            is_confirmed=True,
+            confirmed_by=employee_id,
+            confirmed_date=now_time
+        )
+
+        return Response({
+            "status": "success",
+            "message": f"{updated_count} session(s) confirmed successfully.",
+            "confirmed_ids": session_ids
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        import traceback
+        print("Error in confirm_session_attendance:", traceback.format_exc())
         return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

@@ -658,7 +658,15 @@ def get_monthly_attendance_report(request):
                 continue
 
             if reg not in patient_planned_therapies:
-                patient_planned_therapies[reg] = {}
+                patient_planned_therapies[reg] = {
+                    "therapies": {},
+                    "child_total_planned": 0
+                }
+
+            try:
+                monthly_planned_total = int(att.get("session") or 0)
+            except:
+                monthly_planned_total = 0
 
             t_details_raw = att.get("therapy_details")
             if isinstance(t_details_raw, str):
@@ -671,15 +679,18 @@ def get_monthly_attendance_report(request):
             else:
                 t_details = []
 
+            sum_planned = 0
             if isinstance(t_details, list):
                 for t in t_details:
                     if isinstance(t, dict):
                         tname = t.get("therapy_name")
                         sched = int(t.get("sesion_per_therapy") or t.get("sessions_per_month") or 0)
+                        sum_planned += sched
                         if tname:
-                            patient_planned_therapies[reg][tname] = sched
+                            patient_planned_therapies[reg]["therapies"][tname] = sched
 
-        # Group data by registration_number (child-wise)
+            patient_planned_therapies[reg]["child_total_planned"] = max(monthly_planned_total, sum_planned)
+
         matrix_data = {}
         for r in records:
             reg = r.registration_number
@@ -703,36 +714,40 @@ def get_monthly_attendance_report(request):
                 raw_tname
             )
             
-            total_child_planned = sum(patient_planned_therapies.get(reg, {}).values())
-            
-            if reg not in matrix_data:
-                matrix_data[reg] = {
+            p_info = patient_planned_therapies.get(reg, {})
+            planned_count = p_info.get("therapies", {}).get(tname, 0)
+            child_allotted_count = p_info.get("child_total_planned", 0)
+
+            key = (reg, tname)
+            if key not in matrix_data:
+                matrix_data[key] = {
                     "registration_number": reg,
                     "patient_name": patient_names.get(reg, "Unknown Patient"),
-                    "allotted_sessions": total_child_planned,
+                    "therapy_name": tname,
+                    "allotted_sessions": planned_count,
+                    "child_allotted_sessions": child_allotted_count,
                     "days": {}
                 }
             
             day_str = str(day)
-            if day_str not in matrix_data[reg]["days"]:
-                matrix_data[reg]["days"][day_str] = []
+            if day_str not in matrix_data[key]["days"]:
+                matrix_data[key]["days"][day_str] = []
             
-            matrix_data[reg]["days"][day_str].append({
+            matrix_data[key]["days"][day_str].append({
                 "slot": slot,
-                "therapy_name": tname,
                 "therapist": resolved_name,
                 "therapist_id": resolved_id,
                 "session_id": r.session_id or "",
                 "is_confirmed": bool(r.is_confirmed),
                 "confirmed_by": r.confirmed_by or "",
-                "confirmed_date": r.confirmed_date.strftime('%Y-%m-%d %H:%M') if r.confirmed_date else "",
-                "sessions_attended": int(r.sessions_attended or 1)
+                "confirmed_date": r.confirmed_date.strftime('%Y-%m-%d %H:%M') if r.confirmed_date else ""
             })
 
         result = list(matrix_data.values())
         result.sort(key=lambda x: (
             str(x.get("patient_name", "")).lower(),
-            str(x.get("registration_number", "")).lower()
+            str(x.get("registration_number", "")).lower(),
+            str(x.get("therapy_name", "")).lower()
         ))
 
         return Response({

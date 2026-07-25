@@ -625,6 +625,61 @@ def get_monthly_attendance_report(request):
                 id_to_name[emp_id] = doc_name
                 name_to_id[doc_name] = emp_id
 
+        # Fetch PatientAttendance records from PyMongo to get allotted/planned sessions per therapy
+        db = connection.cursor().db.connection
+        collection = db['milestone_backend_patientattendance']
+        attendance_cursor = list(collection.find({
+            "$or": [
+                {"is_active": True},
+                {"is_active": {"$exists": False}}
+            ]
+        }))
+
+        patient_planned_therapies = {}
+        for att in attendance_cursor:
+            att_date = att.get("attendance_date")
+            rec_year, rec_month = None, None
+            if isinstance(att_date, datetime):
+                rec_year, rec_month = att_date.year, att_date.month
+            elif isinstance(att_date, date):
+                rec_year, rec_month = att_date.year, att_date.month
+            elif isinstance(att_date, str):
+                try:
+                    parsed_dt = datetime.strptime(att_date[:10], '%Y-%m-%d')
+                    rec_year, rec_month = parsed_dt.year, parsed_dt.month
+                except:
+                    continue
+
+            if rec_year != year or rec_month != month:
+                continue
+
+            reg = str(att.get("registration_number", "")).strip()
+            if not reg:
+                continue
+
+            if reg not in patient_planned_therapies:
+                patient_planned_therapies[reg] = {}
+
+            t_details_raw = att.get("therapy_details")
+            if isinstance(t_details_raw, str):
+                try:
+                    t_details = json.loads(t_details_raw)
+                except:
+                    t_details = []
+            elif isinstance(t_details_raw, list):
+                t_details = t_details_raw
+            else:
+                t_details = []
+
+            if isinstance(t_details, list):
+                for t in t_details:
+                    if isinstance(t, dict):
+                        tname = t.get("therapy_name")
+                        sched = int(t.get("sesion_per_therapy") or t.get("sessions_per_month") or 0)
+                        if tname:
+                            patient_planned_therapies[reg][tname] = sched
+
+        # Group data by registration_number (child-wise)
         matrix_data = {}
         for r in records:
             reg = r.registration_number
@@ -648,34 +703,36 @@ def get_monthly_attendance_report(request):
                 raw_tname
             )
             
-            key = (reg, tname)
-            if key not in matrix_data:
-                matrix_data[key] = {
+            total_child_planned = sum(patient_planned_therapies.get(reg, {}).values())
+            
+            if reg not in matrix_data:
+                matrix_data[reg] = {
                     "registration_number": reg,
                     "patient_name": patient_names.get(reg, "Unknown Patient"),
-                    "therapy_name": tname,
+                    "allotted_sessions": total_child_planned,
                     "days": {}
                 }
             
             day_str = str(day)
-            if day_str not in matrix_data[key]["days"]:
-                matrix_data[key]["days"][day_str] = []
+            if day_str not in matrix_data[reg]["days"]:
+                matrix_data[reg]["days"][day_str] = []
             
-            matrix_data[key]["days"][day_str].append({
+            matrix_data[reg]["days"][day_str].append({
                 "slot": slot,
+                "therapy_name": tname,
                 "therapist": resolved_name,
                 "therapist_id": resolved_id,
                 "session_id": r.session_id or "",
                 "is_confirmed": bool(r.is_confirmed),
                 "confirmed_by": r.confirmed_by or "",
-                "confirmed_date": r.confirmed_date.strftime('%Y-%m-%d %H:%M') if r.confirmed_date else ""
+                "confirmed_date": r.confirmed_date.strftime('%Y-%m-%d %H:%M') if r.confirmed_date else "",
+                "sessions_attended": int(r.sessions_attended or 1)
             })
 
         result = list(matrix_data.values())
         result.sort(key=lambda x: (
             str(x.get("patient_name", "")).lower(),
-            str(x.get("registration_number", "")).lower(),
-            str(x.get("therapy_name", "")).lower()
+            str(x.get("registration_number", "")).lower()
         ))
 
         return Response({

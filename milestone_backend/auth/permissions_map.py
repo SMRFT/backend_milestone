@@ -119,6 +119,14 @@ PAGE_MAPPING = {
     r'/_b_a_c_k_e_n_d/Milestone/search_appointments/?(\?.*)?$':'MDC-P-CA',
     r'/_b_a_c_k_e_n_d/Milestone/behavioral-observation-options/?(\?.*)?$':'MDC-P-AD',
 
+    # Notification
+    r'/_b_a_c_k_e_n_d/Milestone/notifications/create/?(\?.*)?$':'MDC-API-AT',
+    r'/_b_a_c_k_e_n_d/Milestone/notifications/send/?(\?.*)?$':'MDC-API-AT',
+    r'/_b_a_c_k_e_n_d/Milestone/notifications/list/?(\?.*)?$':'MDC-API-AT',
+    r'/_b_a_c_k_e_n_d/Milestone/notifications/mark-read/?(\?.*)?$':'MDC-API-NT',
+    r'/_b_a_c_k_e_n_d/Milestone/notifications/report/?(\?.*)?$':'MDC-API-AT',
+    r'/_b_a_c_k_e_n_d/Milestone/notifications/[^/]+/?(\?.*)?$':'MDC-API-AT',
+
     # Therapy
     '/therapy-reports/':'MDC-API-THR',
     '/get_patient_assessments/':'MDC-API-GAS',

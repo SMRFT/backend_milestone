@@ -932,3 +932,36 @@ class BehavioralObservationOption(AuditModel):
 
     def __str__(self):
         return self.name
+
+
+class Notification(AuditModel):
+    notification_id = models.CharField(max_length=50, unique=True, blank=True)
+    title = models.CharField(max_length=255)
+    sub = models.TextField()
+    members = models.JSONField(default=list)
+
+    def save(self, *args, **kwargs):
+        if not self.notification_id:
+            year_str = datetime.datetime.now().strftime('%y')
+            prefix = f"NOTI/{year_str}/"
+            last_noti = Notification.objects.filter(notification_id__startswith=prefix).order_by('-notification_id').first()
+            if last_noti and last_noti.notification_id:
+                try:
+                    parts = last_noti.notification_id.split('/')
+                    if len(parts) == 3:
+                        seq = int(parts[2]) + 1
+                    else:
+                        seq = 1
+                except (ValueError, TypeError):
+                    seq = 1
+            else:
+                seq = 1
+            self.notification_id = f"{prefix}{seq:05d}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.notification_id} - {self.title}"
+
+    class Meta:
+        db_table = "milestone_backend_notification"
+

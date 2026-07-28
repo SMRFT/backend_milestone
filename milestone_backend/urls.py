@@ -1,9 +1,15 @@
 from django.urls import path, re_path
 from . import views 
 from .views import pediatric_assessment_list,get_patients_report
-from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others,pediatricassessment, attendance, Assessment , goals, leave, developmentgoals, goalsmaster, sessionattendance, appoinmentschedule
+from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others,pediatricassessment, attendance, Assessment , goals, leave, developmentgoals, goalsmaster, sessionattendance, appoinmentschedule, notification
 
 urlpatterns = [
+    path('notifications/create/', notification.create_notification, name='create_notification'),
+    path('notifications/send/', notification.mark_notification_sent, name='mark_notification_sent'),
+    path('notifications/list/', notification.get_notifications, name='get_notifications'),
+    path('notifications/mark-read/', notification.mark_notification_read, name='mark_notification_read'),
+    path('notifications/report/', notification.get_notification_report, name='get_notification_report'),
+    path('notifications/<str:pk>/', notification.delete_notification, name='delete_notification'),
     path('therapy-reports/', therapybilling.get_therapy_reports, name='therapy-reports'),
     path('get_patient_assessments/', views.get_patient_assessments, name='get_patient_assessments'),
     path('others-reports/', Others.get_others_reports, name='get_others_reports'),

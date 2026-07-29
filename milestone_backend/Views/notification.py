@@ -19,7 +19,7 @@ def create_notification(request):
         title = data.get('title', '').strip()
         sub = data.get('sub', '').strip()
         raw_members = data.get('members', [])
-        created_by = data.get('created_by', 'Admin')
+        created_by = data.get('auth-user-id', 'Admin')
 
         if not title or not sub:
             return Response({

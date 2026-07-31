@@ -12,6 +12,19 @@ from ..serializers import DailyTimeSlotSerializer, PatientSessionAttendanceSeria
 from pyauth.auth import HasRolePermission
 
 
+def safe_json_parse(data):
+    if isinstance(data, str):
+        try:
+            parsed = json.loads(data)
+            return parsed if isinstance(parsed, list) else []
+        except:
+            return []
+    elif isinstance(data, list):
+        return data
+    return []
+
+
+
 @api_view(['GET'])
 @permission_classes([HasRolePermission])
 def load_session_attendance(request):
@@ -54,7 +67,7 @@ def load_session_attendance(request):
 
         has_monthly_attendance = bool(attendance_doc)
 
-        # Parse therapy_details from attendance if exists
+        # Parse therapy_details, extra_attending_details, not_attending_details from attendance if exists
         total_planned_sessions = 0
         if attendance_doc:
             try:
@@ -62,22 +75,38 @@ def load_session_attendance(request):
             except:
                 total_planned_sessions = 0
 
-            therapy_details_raw = attendance_doc.get("therapy_details")
-            if isinstance(therapy_details_raw, str):
-                try:
-                    therapy_details = json.loads(therapy_details_raw)
-                except:
-                    therapy_details = []
-            elif isinstance(therapy_details_raw, list):
-                therapy_details = therapy_details_raw
-            else:
-                therapy_details = []
+            therapy_details = safe_json_parse(attendance_doc.get("therapy_details"))
+            extra_details = safe_json_parse(attendance_doc.get("extra_attending_details"))
+            not_details = safe_json_parse(attendance_doc.get("not_attending_details"))
 
-            sum_planned = sum(
-                int(t.get("sesion_per_therapy") or t.get("sessions_per_month") or 0)
-                for t in therapy_details
-                if isinstance(t, dict)
-            )
+            total_extra = sum(int(x.get("sessions") or 0) for x in extra_details if isinstance(x, dict))
+            total_not = sum(int(n.get("sessions") or 0) for n in not_details if isinstance(n, dict))
+
+            total_planned_sessions = max(0, total_planned_sessions - total_not + total_extra)
+
+            t_planned_map = {}
+            for t in therapy_details:
+                if isinstance(t, dict):
+                    tname = t.get("therapy_name")
+                    sched = int(t.get("sesion_per_therapy") or t.get("sessions_per_month") or 0)
+                    if tname:
+                        t_planned_map[tname] = sched
+
+            for x in extra_details:
+                if isinstance(x, dict):
+                    xname = x.get("therapy_name")
+                    xsessions = int(x.get("sessions") or 0)
+                    if xname:
+                        t_planned_map[xname] = t_planned_map.get(xname, 0) + xsessions
+
+            for n in not_details:
+                if isinstance(n, dict):
+                    nname = n.get("therapy_name")
+                    nsessions = int(n.get("sessions") or 0)
+                    if nname:
+                        t_planned_map[nname] = max(0, t_planned_map.get(nname, 0) - nsessions)
+
+            sum_planned = sum(t_planned_map.values())
             if sum_planned > total_planned_sessions:
                 total_planned_sessions = sum_planned
 
@@ -237,7 +266,7 @@ def save_session_attendance(request):
         therapies_list = TherapyDetails.objects.all()
         therapy_map = {t.therapy_name: t.therapy_id for t in therapies_list}
 
-        # Calculate total planned sessions in monthly attendance doc
+        # Calculate total planned sessions in monthly attendance doc (including extra and not-attending)
         total_planned_sessions = 0
         if attendance_doc:
             try:
@@ -245,22 +274,38 @@ def save_session_attendance(request):
             except:
                 total_planned_sessions = 0
 
-            curr_details_raw = attendance_doc.get("therapy_details")
-            if isinstance(curr_details_raw, str):
-                try:
-                    curr_details = json.loads(curr_details_raw)
-                except:
-                    curr_details = []
-            elif isinstance(curr_details_raw, list):
-                curr_details = curr_details_raw
-            else:
-                curr_details = []
+            curr_details = safe_json_parse(attendance_doc.get("therapy_details"))
+            extra_details = safe_json_parse(attendance_doc.get("extra_attending_details"))
+            not_details = safe_json_parse(attendance_doc.get("not_attending_details"))
 
-            sum_details_sessions = sum(
-                int(item.get("sesion_per_therapy") or item.get("sessions_per_month") or 0)
-                for item in curr_details
-                if isinstance(item, dict)
-            )
+            total_extra = sum(int(x.get("sessions") or 0) for x in extra_details if isinstance(x, dict))
+            total_not = sum(int(n.get("sessions") or 0) for n in not_details if isinstance(n, dict))
+
+            total_planned_sessions = max(0, total_planned_sessions - total_not + total_extra)
+
+            t_planned_map = {}
+            for t in curr_details:
+                if isinstance(t, dict):
+                    tname = t.get("therapy_name")
+                    sched = int(t.get("sesion_per_therapy") or t.get("sessions_per_month") or 0)
+                    if tname:
+                        t_planned_map[tname] = sched
+
+            for x in extra_details:
+                if isinstance(x, dict):
+                    xname = x.get("therapy_name")
+                    xsessions = int(x.get("sessions") or 0)
+                    if xname:
+                        t_planned_map[xname] = t_planned_map.get(xname, 0) + xsessions
+
+            for n in not_details:
+                if isinstance(n, dict):
+                    nname = n.get("therapy_name")
+                    nsessions = int(n.get("sessions") or 0)
+                    if nname:
+                        t_planned_map[nname] = max(0, t_planned_map.get(nname, 0) - nsessions)
+
+            sum_details_sessions = sum(t_planned_map.values())
             if sum_details_sessions > total_planned_sessions:
                 total_planned_sessions = sum_details_sessions
 
@@ -482,28 +527,39 @@ def get_underattended_patients(request):
             if reg not in patient_planned_therapies:
                 patient_planned_therapies[reg] = {}
 
-            t_details_raw = att.get("therapy_details")
-            if isinstance(t_details_raw, str):
-                try:
-                    t_details = json.loads(t_details_raw)
-                except:
-                    t_details = []
-            elif isinstance(t_details_raw, list):
-                t_details = t_details_raw
-            else:
-                t_details = []
+            t_details = safe_json_parse(att.get("therapy_details"))
+            extra_details = safe_json_parse(att.get("extra_attending_details"))
+            not_details = safe_json_parse(att.get("not_attending_details"))
 
-            if isinstance(t_details, list):
-                for t in t_details:
-                    if isinstance(t, dict):
-                        tname = t.get("therapy_name")
-                        tid = t.get("therapy_id") or t.get("therapy_type") or ""
-                        sched = int(t.get("sesion_per_therapy") or t.get("sessions_per_month") or 0)
-                        if tname:
-                            patient_planned_therapies[reg][tname] = {
-                                "scheduled": sched,
-                                "therapy_id": tid
-                            }
+            for t in t_details:
+                if isinstance(t, dict):
+                    tname = t.get("therapy_name")
+                    tid = t.get("therapy_id") or t.get("therapy_type") or ""
+                    sched = int(t.get("sesion_per_therapy") or t.get("sessions_per_month") or 0)
+                    if tname:
+                        patient_planned_therapies[reg][tname] = {
+                            "scheduled": sched,
+                            "therapy_id": tid
+                        }
+
+            for x in extra_details:
+                if isinstance(x, dict):
+                    xname = x.get("therapy_name")
+                    tid = x.get("therapy_id") or x.get("therapy_type") or ""
+                    xsessions = int(x.get("sessions") or 0)
+                    if xname:
+                        if xname not in patient_planned_therapies[reg]:
+                            patient_planned_therapies[reg][xname] = {"scheduled": 0, "therapy_id": tid}
+                        patient_planned_therapies[reg][xname]["scheduled"] += xsessions
+
+            for n in not_details:
+                if isinstance(n, dict):
+                    nname = n.get("therapy_name")
+                    nsessions = int(n.get("sessions") or 0)
+                    if nname and nname in patient_planned_therapies[reg]:
+                        patient_planned_therapies[reg][nname]["scheduled"] = max(
+                            0, patient_planned_therapies[reg][nname]["scheduled"] - nsessions
+                        )
 
         # 2. Fetch all PatientSessionAttendance records for target month/year
         session_records_qs = PatientSessionAttendance.objects.all()
@@ -668,27 +724,41 @@ def get_monthly_attendance_report(request):
             except:
                 monthly_planned_total = 0
 
-            t_details_raw = att.get("therapy_details")
-            if isinstance(t_details_raw, str):
-                try:
-                    t_details = json.loads(t_details_raw)
-                except:
-                    t_details = []
-            elif isinstance(t_details_raw, list):
-                t_details = t_details_raw
-            else:
-                t_details = []
+            t_details = safe_json_parse(att.get("therapy_details"))
+            extra_details = safe_json_parse(att.get("extra_attending_details"))
+            not_details = safe_json_parse(att.get("not_attending_details"))
 
-            sum_planned = 0
-            if isinstance(t_details, list):
-                for t in t_details:
-                    if isinstance(t, dict):
-                        tname = t.get("therapy_name")
-                        sched = int(t.get("sesion_per_therapy") or t.get("sessions_per_month") or 0)
-                        sum_planned += sched
-                        if tname:
-                            patient_planned_therapies[reg]["therapies"][tname] = sched
+            total_extra = sum(int(x.get("sessions") or 0) for x in extra_details if isinstance(x, dict))
+            total_not = sum(int(n.get("sessions") or 0) for n in not_details if isinstance(n, dict))
 
+            monthly_planned_total = max(0, monthly_planned_total - total_not + total_extra)
+
+            t_planned_map = {}
+            for t in t_details:
+                if isinstance(t, dict):
+                    tname = t.get("therapy_name")
+                    sched = int(t.get("sesion_per_therapy") or t.get("sessions_per_month") or 0)
+                    if tname:
+                        t_planned_map[tname] = sched
+
+            for x in extra_details:
+                if isinstance(x, dict):
+                    xname = x.get("therapy_name")
+                    xsessions = int(x.get("sessions") or 0)
+                    if xname:
+                        t_planned_map[xname] = t_planned_map.get(xname, 0) + xsessions
+
+            for n in not_details:
+                if isinstance(n, dict):
+                    nname = n.get("therapy_name")
+                    nsessions = int(n.get("sessions") or 0)
+                    if nname:
+                        t_planned_map[nname] = max(0, t_planned_map.get(nname, 0) - nsessions)
+
+            for tname, sched in t_planned_map.items():
+                patient_planned_therapies[reg]["therapies"][tname] = sched
+
+            sum_planned = sum(t_planned_map.values())
             patient_planned_therapies[reg]["child_total_planned"] = max(monthly_planned_total, sum_planned)
 
         matrix_data = {}
@@ -795,4 +865,185 @@ def confirm_session_attendance(request):
         import traceback
         print("Error in confirm_session_attendance:", traceback.format_exc())
         return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+def parse_date_only(d):
+    if not d:
+        return None
+    if isinstance(d, datetime):
+        return d.date()
+    if isinstance(d, date):
+        return d
+    if isinstance(d, str):
+        try:
+            return datetime.strptime(d[:10], '%Y-%m-%d').date()
+        except:
+            return None
+    return None
+
+
+@api_view(['GET'])
+def get_attendance_vs_registered_report(request):
+    try:
+        month_str = request.GET.get('month')
+        year_str = request.GET.get('year')
+        
+        try:
+            month = int(month_str) if month_str else datetime.now().month
+            year = int(year_str) if year_str else datetime.now().year
+        except ValueError:
+            return Response(
+                {"error": "Invalid month or year parameter"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        db = connection.cursor().db.connection
+        collection = db['milestone_backend_patientattendance']
+
+        # 1. Fetch earliest PatientAttendance date for each registration_number
+        pa_cursor = collection.find({
+            "$or": [
+                {"is_active": True},
+                {"is_active": {"$exists": False}}
+            ]
+        }, {"registration_number": 1, "attendance_date": 1})
+
+        first_pa_map = {}
+        for doc in pa_cursor:
+            reg = str(doc.get("registration_number", "")).strip()
+            att_d = parse_date_only(doc.get("attendance_date"))
+            if reg and att_d:
+                if reg not in first_pa_map or att_d < first_pa_map[reg]:
+                    first_pa_map[reg] = att_d
+
+        # 2. Fetch earliest PatientSessionAttendance date for each registration_number
+        sa_collection = db['milestone_backend_patientsessionattendance']
+        sa_cursor = sa_collection.find({
+            "$or": [
+                {"is_active": True},
+                {"is_active": {"$exists": False}}
+            ]
+        }, {"registration_number": 1, "attendance_date": 1})
+
+        first_sa_map = {}
+        for doc in sa_cursor:
+            reg = str(doc.get("registration_number", "")).strip()
+            att_d = parse_date_only(doc.get("attendance_date"))
+            if reg and att_d:
+                if reg not in first_sa_map or att_d < first_sa_map[reg]:
+                    first_sa_map[reg] = att_d
+
+        # 3. Fetch all registrations
+        all_registrations = list(Registration.objects.all().order_by('-id'))
+
+        today_date = date.today()
+
+        joined_this_month = []
+        registered_this_month = []
+        without_therapy_list = []
+        without_therapy_this_month = []
+
+        total_registered_this_month_count = 0
+        total_joined_therapy_this_month_count = 0
+
+        for r in all_registrations:
+            reg = str(r.registration_number or "").strip()
+            if not reg:
+                continue
+            
+            patient_name = r.name_of_child or "Unknown Patient"
+            reg_d = parse_date_only(r.date) or parse_date_only(getattr(r, 'created_date', None))
+            phone = r.mother_phone_number or r.father_phone_number or "N/A"
+            guardian = r.mother_name or r.father_name or r.guardian_name or "N/A"
+
+            pa_date = first_pa_map.get(reg)
+            sa_date = first_sa_map.get(reg)
+
+            therapy_join_date = None
+            first_source = None
+
+            if pa_date and sa_date:
+                if pa_date <= sa_date:
+                    therapy_join_date = pa_date
+                    first_source = "Monthly Attendance"
+                else:
+                    therapy_join_date = sa_date
+                    first_source = "Session Attendance"
+            elif pa_date:
+                therapy_join_date = pa_date
+                first_source = "Monthly Attendance"
+            elif sa_date:
+                therapy_join_date = sa_date
+                first_source = "Session Attendance"
+
+            is_reg_this_month = bool(reg_d and reg_d.year == year and reg_d.month == month)
+            is_joined_this_month = bool(therapy_join_date and therapy_join_date.year == year and therapy_join_date.month == month)
+
+            if is_reg_this_month:
+                total_registered_this_month_count += 1
+
+            if is_joined_this_month:
+                total_joined_therapy_this_month_count += 1
+
+            gap_days = (therapy_join_date - reg_d).days if (therapy_join_date and reg_d) else None
+
+            patient_item = {
+                "registration_number": reg,
+                "patient_name": patient_name,
+                "registration_date": reg_d.strftime('%Y-%m-%d') if reg_d else "N/A",
+                "therapy_join_date": therapy_join_date.strftime('%Y-%m-%d') if therapy_join_date else "Not Joined Yet",
+                "first_attendance_source": first_source or "None",
+                "gap_days": gap_days,
+                "phone": phone,
+                "guardian": guardian,
+                "has_therapy": bool(therapy_join_date)
+            }
+
+            if is_joined_this_month:
+                joined_this_month.append(patient_item)
+
+            if is_reg_this_month:
+                registered_this_month.append(patient_item)
+                if not therapy_join_date:
+                    without_therapy_this_month.append(patient_item)
+
+            if not therapy_join_date:
+                days_since_reg = (today_date - reg_d).days if reg_d else 0
+                item_without = {**patient_item, "days_since_registration": days_since_reg}
+                without_therapy_list.append(item_without)
+
+        # Sort lists
+        joined_this_month.sort(key=lambda x: x["therapy_join_date"], reverse=True)
+        registered_this_month.sort(key=lambda x: x["registration_date"], reverse=True)
+        without_therapy_list.sort(key=lambda x: x["registration_date"], reverse=True)
+
+        avg_days_to_join = 0
+        valid_gaps = [x["gap_days"] for x in joined_this_month if x["gap_days"] is not None and x["gap_days"] >= 0]
+        if valid_gaps:
+            avg_days_to_join = round(sum(valid_gaps) / len(valid_gaps), 1)
+
+        return Response({
+            "status": "success",
+            "month": month,
+            "year": year,
+            "summary": {
+                "total_registered_this_month": total_registered_this_month_count,
+                "total_joined_this_month": total_joined_therapy_this_month_count,
+                "without_therapy_this_month": len(without_therapy_this_month),
+                "without_therapy_all_time": len(without_therapy_list),
+                "avg_days_to_join": avg_days_to_join
+            },
+            "data": {
+                "joined_this_month": joined_this_month,
+                "registered_this_month": registered_this_month,
+                "without_therapy_this_month": without_therapy_this_month,
+                "without_therapy_all_time": without_therapy_list
+            }
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        import traceback
+        print("Error in get_attendance_vs_registered_report:", traceback.format_exc())
+        return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 

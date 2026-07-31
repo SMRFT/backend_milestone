@@ -104,6 +104,7 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/session-attendance/slots/?(\?.*)?$':'MDC-API-AT',
     '/_b_a_c_k_e_n_d/Milestone/session-attendance/save/?(\?.*)?$':'MDC-API-AT',
     '/_b_a_c_k_e_n_d/Milestone/session-attendance/underattended/?(\?.*)?$':'MDC-API-AT',
+    r'^/_b_a_c_k_e_n_d/Milestone/session-attendance/attendance-vs-registered/?(\?.*)?$':'MDC-API-AT',
 
     #Appoinment Schedule
 

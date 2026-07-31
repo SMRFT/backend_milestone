@@ -122,6 +122,7 @@ urlpatterns = [
     path('session-attendance/confirm/', sessionattendance.confirm_session_attendance, name='session_attendance_confirm'),
     path('session-attendance/underattended/', sessionattendance.get_underattended_patients, name='session_attendance_underattended'),
     path('session-attendance/monthly-report/', sessionattendance.get_monthly_attendance_report, name='session_attendance_monthly_report'),
+    path('session-attendance/attendance-vs-registered/', sessionattendance.get_attendance_vs_registered_report, name='session_attendance_vs_registered'),
 
     #Appoinment Schedule
     path('get_dailytimeslot/', appoinmentschedule.get_dailytimeslot, name='get_dailytimeslot'),

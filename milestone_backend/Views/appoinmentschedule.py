@@ -238,8 +238,13 @@ def update_appointment_status(request):
     except AppointmentSchedule.DoesNotExist:
         return Response({"success": False, "error": "Appointment not found."}, status=404)
  
-    # ✅ Cancel, Reschedule, and Finish are allowed from either Scheduled or Rescheduled
-    if new_status in ("Cancelled", "Finished", "Rescheduled"):
+    # ✅ Completed or Cancelled appointments cannot be edited, rescheduled, or cancelled
+    if appointment.status in ("Completed", "Finished"):
+        return Response({"success": False, "error": "Completed appointments cannot be rescheduled or cancelled."}, status=400)
+    if appointment.status == "Cancelled":
+        return Response({"success": False, "error": "Cancelled appointments cannot be edited or rescheduled."}, status=400)
+
+    if new_status in ("Cancelled", "Finished", "Completed", "Rescheduled"):
         if appointment.status not in ("Scheduled", "Rescheduled"):
             return Response(
                 {"success": False, "error": f"Only scheduled or rescheduled appointments can be updated to '{new_status}'."},

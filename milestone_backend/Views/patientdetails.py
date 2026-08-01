@@ -1,6 +1,6 @@
 import json
 from ..serializers import RegistrationSerializer
-from ..models import Registration, PatientAssessment
+from ..models import Registration, PatientAssessment, AppointmentSchedule
 from rest_framework.response import Response
 from datetime import datetime ,timedelta ,date
 from rest_framework.decorators import api_view , permission_classes
@@ -97,7 +97,20 @@ def create_registration(request):
     serializer = RegistrationSerializer(data=request.data, context={'employee_id': employee_id})
     
     if serializer.is_valid():
-        serializer.save()
+        registration_instance = serializer.save()
+        
+        # If an appointment was converted into this registration, mark appointment status as Completed
+        appointment_id = getattr(registration_instance, 'appointment_id', None) or request.data.get('appointment_id')
+        if appointment_id:
+            try:
+                appt_id_int = int(appointment_id)
+                AppointmentSchedule.objects.filter(appointment_id=appt_id_int).update(
+                    status="Completed",
+                    registration_number=registration_instance.registration_number
+                )
+            except Exception as e:
+                print(f"Error updating appointment status to Completed: {e}")
+
         return Response(serializer.data, status=201)
     return Response(serializer.errors, status=400)
 
@@ -153,6 +166,18 @@ def update_registration(request, registration_number):
             {"registration_number": registration_number},
             {"$set": update_data}
         )
+
+        # If appointment_id is linked, ensure appointment status is marked as Completed
+        appointment_id = update_data.get('appointment_id') or request.data.get('appointment_id')
+        if appointment_id:
+            try:
+                appt_id_int = int(appointment_id)
+                AppointmentSchedule.objects.filter(appointment_id=appt_id_int).update(
+                    status="Completed",
+                    registration_number=registration_number
+                )
+            except Exception as e:
+                print(f"Error updating appointment status to Completed: {e}")
 
         if result.modified_count > 0:
             updated_doc = collection.find_one({"registration_number": registration_number})

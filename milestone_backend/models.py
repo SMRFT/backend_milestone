@@ -33,6 +33,7 @@ class Registration(AuditModel):
     reason_for_visit = models.JSONField()
     duration_of_symptoms = models.TextField(blank=True, null=True)
     previous_treatment_done = models.TextField(blank=True, null=True)
+    other_details = models.TextField(blank=True, null=True)
     source_of_referral = models.JSONField(blank=True)  # Stores source of referral data as JSON
     registration_number = models.CharField(max_length=20, unique=True, blank=True)
     appointment_id = models.IntegerField(blank=True, null=True)

@@ -113,6 +113,7 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/create_appointment/':'MDC-P-CA',
     '/_b_a_c_k_e_n_d/Milestone/get_all_therapists/':'MDC-P-GAT',
     r'/_b_a_c_k_e_n_d/Milestone/get_appointments_by_date/?(\?.*)?$':'MDC-P-GAD',
+    r'/_b_a_c_k_e_n_d/Milestone/get_appointments_by_month/?(\?.*)?$':'MDC-P-GAD',
     '/_b_a_c_k_e_n_d/Milestone/update_appointment_status/':'MDC-P-UAS',
     r'/_b_a_c_k_e_n_d/Milestone/appointment_dashboard/?(\?.*)?$':'MDC-P-AD',
 

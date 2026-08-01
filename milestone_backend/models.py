@@ -202,7 +202,8 @@ class ReferralDoctor(AuditModel):
     referral_id = models.CharField(max_length=10, blank=True, null=True)  # Make it optional first
     sex = models.CharField(max_length=20, blank=True, null=True)  # Make it optional first  
     email = models.CharField(max_length=100, blank=True, null=True)  # Use CharField instead of EmailField initially
-    hospital_name = models.CharField(max_length=100)
+    hospital_name = models.CharField(max_length=100, blank=True, null=True)
+    school = models.CharField(max_length=100, blank=True, null=True)
     area = models.CharField(max_length=100, blank=True, null=True)
     city = models.CharField(max_length=100, blank=True, null=True)
     district = models.CharField(max_length=100, blank=True, null=True)
@@ -287,7 +288,7 @@ class CBCL(AuditModel):
 
 
 class ConsultingDoctor(AuditModel):
-    employee_id = models.CharField(max_length=100,blank=True)
+    employee_id = models.CharField(max_length=100, blank=True, null=True)
     name = models.CharField(max_length=100)
     designation = models.CharField(max_length=100, blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True, null=True)

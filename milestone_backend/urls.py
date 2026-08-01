@@ -129,6 +129,7 @@ urlpatterns = [
     path('create_appointment/', appoinmentschedule.create_appointment, name='create_appointment'),
     path('get_all_therapists/', appoinmentschedule.get_all_therapists, name='get_all_therapists'),
     path('get_appointments_by_date/', appoinmentschedule.get_appointments_by_date, name='get_appointments_by_date'),
+    path('get_appointments_by_month/', appoinmentschedule.get_appointments_by_month, name='get_appointments_by_month'),
     path('update_appointment_status/', appoinmentschedule.update_appointment_status, name='update_appointment_status'),
     path('appointment_dashboard/', appoinmentschedule.appointment_dashboard, name='appointment_dashboard'),
     path('search_appointments/', appoinmentschedule.search_appointments, name='search_appointments'),

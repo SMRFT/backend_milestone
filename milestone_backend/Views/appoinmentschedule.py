@@ -165,6 +165,29 @@ def create_appointment(request):
             status=400
         )
  
+    # ✅ Overlap clash check
+    therapist_id = payload.get("therapist_id")
+    if therapist_id and slot_start and slot_end:
+        existing_appts = AppointmentSchedule.objects.filter(
+            date=appt_date,
+            isactive=True
+        ).exclude(status="Cancelled").filter(
+            Q(therapist_id=therapist_id) | Q(rescheduled_therapist_id=therapist_id)
+        )
+
+        for existing in existing_appts:
+            e_start = existing.slot_start_time.strftime("%H:%M") if existing.slot_start_time else None
+            e_end = existing.slot_end_time.strftime("%H:%M") if existing.slot_end_time else None
+            if e_start and e_end:
+                if slot_start < e_end and slot_end > e_start:
+                    return Response(
+                        {
+                            "success": False,
+                            "error": f"Doctor already has an appointment scheduled from {e_start} to {e_end} on this date."
+                        },
+                        status=400
+                    )
+
     # ✅ Combine date + time
     payload["appointment_datetime"] = f"{payload.get('date')}T{slot_start}:00"
  
@@ -197,7 +220,7 @@ def create_appointment(request):
 def update_appointment_status(request):
     """
     Reschedule:
-    { "appointment_id": 2, "status": "Rescheduled", "rescheduled_therapist_id": "<new therapist id>" }
+    { "appointment_id": 2, "status": "Rescheduled", "rescheduled_therapist_id": "<new therapist id>", "date": "2026-08-01", "slot_start_time": "10:00", "slot_end_time": "10:45" }
  
     Cancel:
     { "appointment_id": 2, "status": "Cancelled", "cancel_reason": "Patient requested a different day" }
@@ -230,15 +253,13 @@ def update_appointment_status(request):
     employee_id = request.data.get("auth-user-id")
  
     if new_status == "Rescheduled":
-        # Frontend sends the reassigned doctor as rescheduled_therapist_id.
-        new_therapist_id = request.data.get("rescheduled_therapist_id")
+        new_therapist_id = request.data.get("rescheduled_therapist_id") or appointment.therapist_id
         if not new_therapist_id:
             return Response(
                 {"success": False, "error": "'rescheduled_therapist_id' is required to reschedule."},
                 status=400
             )
 
-        # Optional new date/time slot for reschedule
         new_date_str = request.data.get("date")
         new_start_time_str = request.data.get("slot_start_time")
         new_end_time_str = request.data.get("slot_end_time")
@@ -253,6 +274,9 @@ def update_appointment_status(request):
             except ValueError:
                 return Response({"success": False, "error": "Invalid date format. Use YYYY-MM-DD."}, status=400)
 
+        if target_date < date_cls.today():
+            return Response({"success": False, "error": "Cannot reschedule an appointment to a past date."}, status=400)
+
         if new_start_time_str:
             try:
                 target_start = datetime.strptime(new_start_time_str, "%H:%M").time()
@@ -265,22 +289,35 @@ def update_appointment_status(request):
             except ValueError:
                 return Response({"success": False, "error": "Invalid slot_end_time format. Use HH:MM."}, status=400)
 
-        # ✅ Check for doctor clash on the target date/slot
-        clash = AppointmentSchedule.objects.filter(
+        target_start_str = target_start.strftime("%H:%M") if target_start else "10:00"
+        target_end_str = target_end.strftime("%H:%M") if target_end else "10:45"
+
+        # Check for doctor overlap clash on target date
+        existing_appts = AppointmentSchedule.objects.filter(
             date=target_date,
-            slot_start_time=target_start,
-            slot_end_time=target_end,
-        ).exclude(appointment_id=appointment.appointment_id).filter(
-            Q(status="Scheduled", therapist_id=new_therapist_id) |
-            Q(status="Rescheduled", rescheduled_therapist_id=new_therapist_id)
-        ).exists()
-        if clash:
-            return Response({"success": False, "error": "That doctor already has a booking in this slot."}, status=400)
+            isactive=True
+        ).exclude(appointment_id=appointment.appointment_id).exclude(status="Cancelled").filter(
+            Q(therapist_id=new_therapist_id) | Q(rescheduled_therapist_id=new_therapist_id)
+        )
+
+        for existing in existing_appts:
+            e_start = existing.slot_start_time.strftime("%H:%M") if existing.slot_start_time else None
+            e_end = existing.slot_end_time.strftime("%H:%M") if existing.slot_end_time else None
+            if e_start and e_end:
+                if target_start_str < e_end and target_end_str > e_start:
+                    return Response(
+                        {
+                            "success": False,
+                            "error": f"Doctor already has an appointment scheduled from {e_start} to {e_end} on this date."
+                        },
+                        status=400
+                    )
 
         # Update appointment details
         appointment.date = target_date
         appointment.slot_start_time = target_start
         appointment.slot_end_time = target_end
+        appointment.slot_label = f"{target_start_str} - {target_end_str}"
         appointment.rescheduled_therapist_id = new_therapist_id
         appointment.status = "Rescheduled"
         message = f"Appointment for {appointment.name_of_child} has been rescheduled."
@@ -745,3 +782,34 @@ def appointment_report(request):
             "non_attendance_list": RegistrationSerializer(reg_non_attendance_records, many=True).data,
         }
     })
+
+
+import calendar
+
+@api_view(["GET"])
+@permission_classes([HasRolePermission])
+def get_appointments_by_month(request):
+    """
+    Returns appointments for a given month and year.
+    Query params: ?year=2026&month=8 (defaults to current month/year)
+    """
+    year_str = request.GET.get("year")
+    month_str = request.GET.get("month")
+
+    today = date_cls.today()
+    try:
+        year = int(year_str) if year_str else today.year
+        month = int(month_str) if month_str else today.month
+        _, last_day = calendar.monthrange(year, month)
+        start_date = date_cls(year, month, 1)
+        end_date = date_cls(year, month, last_day)
+    except (ValueError, TypeError):
+        return Response({"success": False, "error": "Invalid year or month format"}, status=400)
+
+    appointments = AppointmentSchedule.objects.filter(
+        date__gte=start_date,
+        date__lte=end_date
+    ).exclude(status="Cancelled")
+
+    serializer = AppointmentScheduleSerializer(appointments, many=True)
+    return Response({"success": True, "data": serializer.data})

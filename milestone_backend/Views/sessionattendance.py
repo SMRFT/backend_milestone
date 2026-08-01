@@ -477,6 +477,7 @@ def get_active_slots(request):
 
 
 @api_view(['GET'])
+@permission_classes([HasRolePermission])
 def get_underattended_patients(request):
     try:
         month_str = request.GET.get('month')
@@ -639,6 +640,7 @@ def get_underattended_patients(request):
 
 
 @api_view(['GET'])
+@permission_classes([HasRolePermission])
 def get_monthly_attendance_report(request):
     try:
         month_str = request.GET.get('month')
@@ -835,6 +837,7 @@ def get_monthly_attendance_report(request):
 
 
 @api_view(['POST', 'PATCH'])
+@permission_classes([HasRolePermission])
 def confirm_session_attendance(request):
     try:
         session_id = request.data.get('session_id')
@@ -883,6 +886,7 @@ def parse_date_only(d):
 
 
 @api_view(['GET'])
+@permission_classes([HasRolePermission])
 def get_attendance_vs_registered_report(request):
     try:
         month_str = request.GET.get('month')

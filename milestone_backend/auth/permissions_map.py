@@ -97,6 +97,13 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/update-leave-status/':'MDC-API-L',
     r'^/_b_a_c_k_e_n_d/Milestone/get-leaves-report/?(\?.*)?$':'MDC-API-L',
 
+    # Q&A Module
+    r'^/_b_a_c_k_e_n_d/Milestone/qna/list/?(\?.*)?$':'MDC-P-REG',
+    '/_b_a_c_k_e_n_d/Milestone/qna/create/':'MDC-P-REG',
+    '/_b_a_c_k_e_n_d/Milestone/qna/add-answer/':'MDC-P-REG',
+    r'^/_b_a_c_k_e_n_d/Milestone/qna/update/.*$':'MDC-P-REG',
+    r'^/_b_a_c_k_e_n_d/Milestone/qna/delete/.*$':'MDC-P-REG',
+
     # Session Attendance
     
     '/_b_a_c_k_e_n_d/Milestone/session-attendance/load/?(\?.*)?$':'MDC-API-AT',

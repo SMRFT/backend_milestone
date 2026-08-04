@@ -1,9 +1,14 @@
 from django.urls import path, re_path
 from . import views 
 from .views import pediatric_assessment_list,get_patients_report
-from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others,pediatricassessment, attendance, Assessment , goals, leave, developmentgoals, goalsmaster, sessionattendance, appoinmentschedule, notification
+from .Views import Security ,patientdetails ,cbcl,consultingdoctors,invoice,referals,mchat,therapybilling,childlanguage,developmentalscreeningtask, Others,pediatricassessment, attendance, Assessment , goals, leave, developmentgoals, goalsmaster, sessionattendance, appoinmentschedule, notification, qna
 
 urlpatterns = [
+    path('qna/list/', qna.get_qna_list, name='get_qna_list'),
+    path('qna/create/', qna.create_question, name='create_question'),
+    path('qna/add-answer/', qna.add_answer, name='add_answer'),
+    path('qna/update/<str:qa_id>/', qna.update_question, name='update_question'),
+    path('qna/delete/<str:qa_id>/', qna.delete_question, name='delete_question'),
     path('notifications/create/', notification.create_notification, name='create_notification'),
     path('notifications/send/', notification.mark_notification_sent, name='mark_notification_sent'),
     path('notifications/list/', notification.get_notifications, name='get_notifications'),

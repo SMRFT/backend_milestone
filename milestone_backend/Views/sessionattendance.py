@@ -65,6 +65,12 @@ def load_session_attendance(request):
             "is_active": True
         }, sort=[("attendance_date", -1)])
 
+        if not attendance_doc:
+            attendance_doc = collection.find_one({
+                "registration_number": registration_number,
+                "is_active": True
+            }, sort=[("attendance_date", -1)])
+
         has_monthly_attendance = bool(attendance_doc)
 
         # Parse therapy_details, extra_attending_details, not_attending_details from attendance if exists
@@ -111,12 +117,16 @@ def load_session_attendance(request):
                 total_planned_sessions = sum_planned
 
         # Fetch sessions for other days in this month to calculate total projected sessions
-        other_days_sessions = PatientSessionAttendance.objects.filter(
-            registration_number=registration_number,
-            attendance_date__range=(date_start_month.date(), date_end_month.date())
-        ).exclude(attendance_date=date_obj)
+        all_patient_sessions = list(PatientSessionAttendance.objects.filter(registration_number=registration_number))
+        
+        other_days_sessions = [
+            r for r in all_patient_sessions
+            if r.is_active and r.attendance_date and parse_date_only(r.attendance_date) and parse_date_only(r.attendance_date).year == date_obj.year
+            and parse_date_only(r.attendance_date).month == date_obj.month
+            and parse_date_only(r.attendance_date) != date_obj
+        ]
 
-        other_days_total = sum(int(r.sessions_attended or 1) for r in other_days_sessions if r.is_active)
+        other_days_total = sum(int(r.sessions_attended or 1) for r in other_days_sessions)
 
         # 2. Fetch all active DailyTimeSlots
         all_slots = DailyTimeSlot.objects.all()
@@ -146,17 +156,22 @@ def load_session_attendance(request):
         )
         existing_records = [r for r in existing_records_qs if r.is_active]
 
-        existing_map = {r.therapy_id: r for r in existing_records}
+        from collections import defaultdict
+        existing_map = defaultdict(list)
+        for r in existing_records:
+            existing_map[r.therapy_id].append(r)
 
         # 5. Fetch all PatientSessionAttendance records in this month to compute monthly totals so far
-        all_month_sessions_qs = PatientSessionAttendance.objects.filter(
-            registration_number=registration_number,
-            attendance_date__range=(date_start_month.date(), date_end_month.date())
-        )
+        all_month_sessions = [
+            r for r in all_patient_sessions
+            if r.is_active and r.attendance_date and parse_date_only(r.attendance_date) and parse_date_only(r.attendance_date).year == date_obj.year
+            and parse_date_only(r.attendance_date).month == date_obj.month
+        ]
         month_totals_map = {}
-        for r in all_month_sessions_qs:
-            if r.is_active:
-                month_totals_map[r.therapy_id] = month_totals_map.get(r.therapy_id, 0) + int(r.sessions_attended or 1)
+        for r in all_month_sessions:
+            month_totals_map[r.therapy_id] = month_totals_map.get(r.therapy_id, 0) + int(r.sessions_attended or 1)
+
+        slot_label_map = {s["slot_id"]: s["label"] for s in slots_data}
 
         # 6. Build list of therapies with current/default state out of all available therapies
         result_therapies = []
@@ -164,34 +179,51 @@ def load_session_attendance(request):
             name = t.therapy_name
             tid = t.therapy_id
             
-            existing = existing_map.get(tid)
+            recs = existing_map.get(tid, [])
             
-            if existing:
+            if recs:
                 attended = True
-                attended_slot = existing.attended_slot
-                slot_label = existing.slot_label
-                raw_t = existing.therapist_id or existing.therapist or ""
-                # Prefer employee_id for the dropdown value
-                therapist = existing.therapist_id or name_to_id.get(existing.therapist) or existing.therapist or ""
-                sessions_attended = existing.sessions_attended
-                session_id = existing.session_id or ""
+                sessions_attended = sum(int(r.sessions_attended or 1) for r in recs)
+                slots_info = []
+                for r in recs:
+                    t_val = r.therapist_id or name_to_id.get(r.therapist) or r.therapist or ""
+                    s_label = r.slot_label or slot_label_map.get(r.attended_slot, "")
+                    slots_info.append({
+                        "attended_slot": r.attended_slot or (slots_data[0]["slot_id"] if slots_data else ""),
+                        "slot_label": s_label,
+                        "therapist": t_val,
+                        "session_id": r.session_id or ""
+                    })
+                first_slot = slots_info[0]["attended_slot"]
+                first_label = slots_info[0]["slot_label"]
+                first_therapist = slots_info[0]["therapist"]
+                first_session_id = slots_info[0]["session_id"]
             else:
                 attended = False
-                attended_slot = slots_data[0]["slot_id"] if slots_data else ""
-                slot_label = slots_data[0]["label"] if slots_data else ""
-                therapist = ""
                 sessions_attended = 1
-                session_id = ""
+                default_slot = slots_data[0]["slot_id"] if slots_data else ""
+                default_label = slots_data[0]["label"] if slots_data else ""
+                slots_info = [{
+                    "attended_slot": default_slot,
+                    "slot_label": default_label,
+                    "therapist": "",
+                    "session_id": ""
+                }]
+                first_slot = default_slot
+                first_label = default_label
+                first_therapist = ""
+                first_session_id = ""
 
             result_therapies.append({
                 "therapy_id": tid,
                 "therapy_name": name,
                 "attended": attended,
-                "attended_slot": attended_slot,
-                "slot_label": slot_label,
-                "therapist": therapist,
+                "attended_slot": first_slot,
+                "slot_label": first_label,
+                "therapist": first_therapist,
                 "sessions_attended": sessions_attended,
-                "session_id": session_id,
+                "session_id": first_session_id,
+                "slots_info": slots_info,
                 "max_allowed_sessions": total_planned_sessions,
                 "month_total_sessions": month_totals_map.get(tid, 0)
             })
@@ -263,6 +295,12 @@ def save_session_attendance(request):
             "is_active": True
         }, sort=[("attendance_date", -1)])
 
+        if not attendance_doc:
+            attendance_doc = collection.find_one({
+                "registration_number": registration_number,
+                "is_active": True
+            }, sort=[("attendance_date", -1)])
+
         therapies_list = TherapyDetails.objects.all()
         therapy_map = {t.therapy_name: t.therapy_id for t in therapies_list}
 
@@ -310,12 +348,15 @@ def save_session_attendance(request):
                 total_planned_sessions = sum_details_sessions
 
         # Fetch sessions for other days in this month to calculate total projected sessions
-        other_days_sessions = PatientSessionAttendance.objects.filter(
-            registration_number=registration_number,
-            attendance_date__range=(date_start_month.date(), date_end_month.date())
-        ).exclude(attendance_date=date_obj)
+        all_patient_sessions = list(PatientSessionAttendance.objects.filter(registration_number=registration_number))
+        other_days_sessions = [
+            r for r in all_patient_sessions
+            if r.is_active and r.attendance_date and parse_date_only(r.attendance_date) and parse_date_only(r.attendance_date).year == date_obj.year
+            and parse_date_only(r.attendance_date).month == date_obj.month
+            and parse_date_only(r.attendance_date) != date_obj
+        ]
 
-        other_days_total = sum(int(r.sessions_attended or 1) for r in other_days_sessions if r.is_active)
+        other_days_total = sum(int(r.sessions_attended or 1) for r in other_days_sessions)
         new_day_total = sum(int(ct.get("sessions_attended", 1)) for ct in checked_therapies)
         total_projected = other_days_total + new_day_total
 
@@ -332,10 +373,18 @@ def save_session_attendance(request):
             registration_number=registration_number,
             attendance_date=date_obj
         )
-        existing_session_map = {r.therapy_id: r for r in existing_sessions}
+        existing_session_map = {}
+        for r in existing_sessions:
+            if r.therapy_id not in existing_session_map:
+                existing_session_map[r.therapy_id] = []
+            existing_session_map[r.therapy_id].append(r)
         
         # Delete existing entries for this date
         existing_sessions.delete()
+
+        # Fetch active slots for label lookup
+        all_slots_qs = DailyTimeSlot.objects.all()
+        slot_label_lookup = {s.slot_id: s.label for s in all_slots_qs}
 
         # Fetch consulting doctors to map therapist name <-> ID
         from milestone_backend.models import ConsultingDoctor
@@ -352,55 +401,71 @@ def save_session_attendance(request):
         # Insert new ones for checked therapies on this exact date
         for ct in checked_therapies:
             tid = ct.get("therapy_id")
-            existing_rec = existing_session_map.get(tid)
-            preserved_session_id = existing_rec.session_id if existing_rec else None
-            preserved_is_confirmed = existing_rec.is_confirmed if existing_rec else False
-            preserved_confirmed_by = existing_rec.confirmed_by if existing_rec else ""
-            preserved_confirmed_date = existing_rec.confirmed_date if existing_rec else None
+            existing_recs = existing_session_map.get(tid, [])
+            
+            slots_info = ct.get("slots_info")
+            if not slots_info or not isinstance(slots_info, list) or len(slots_info) == 0:
+                slots_info = [{
+                    "attended_slot": ct.get("attended_slot"),
+                    "slot_label": ct.get("slot_label"),
+                    "therapist": ct.get("therapist"),
+                    "therapist_id": ct.get("therapist_id") or ct.get("therapist"),
+                    "session_id": ct.get("session_id")
+                }]
 
-            raw_therapist = str(ct.get("therapist", "")).strip()
-            raw_therapist_id = str(ct.get("therapist_id", "")).strip() or raw_therapist
+            for s_idx, s_item in enumerate(slots_info):
+                matching_existing = existing_recs[s_idx] if s_idx < len(existing_recs) else None
+                preserved_session_id = s_item.get("session_id") or (matching_existing.session_id if matching_existing else None)
+                preserved_is_confirmed = matching_existing.is_confirmed if matching_existing else False
+                preserved_confirmed_by = matching_existing.confirmed_by if matching_existing else ""
+                preserved_confirmed_date = matching_existing.confirmed_date if matching_existing else None
 
-            # Determine therapist name and therapist ID cleanly
-            if raw_therapist in id_to_name:
-                t_id = raw_therapist
-                t_name = id_to_name[raw_therapist]
-            elif raw_therapist in name_to_id:
-                t_id = name_to_id[raw_therapist]
-                t_name = raw_therapist
-            elif raw_therapist_id in id_to_name:
-                t_id = raw_therapist_id
-                t_name = id_to_name[raw_therapist_id]
-            else:
-                t_id = raw_therapist_id
-                t_name = raw_therapist
+                raw_therapist = str(s_item.get("therapist", "")).strip()
+                raw_therapist_id = str(s_item.get("therapist_id", "")).strip() or raw_therapist
 
-            PatientSessionAttendance.objects.create(
-                registration_number=registration_number,
-                attendance_date=date_obj,
-                therapy_id=tid,
-                therapy_name=ct.get("therapy_name"),
-                attended_slot=ct.get("attended_slot"),
-                slot_label=ct.get("slot_label"),
-                therapist=t_name,
-                therapist_id=t_id,
-                is_confirmed=preserved_is_confirmed,
-                confirmed_by=preserved_confirmed_by,
-                confirmed_date=preserved_confirmed_date,
-                sessions_attended=int(ct.get("sessions_attended", 1)),
-                session_id=preserved_session_id,
-                created_by=employee_id,
-                created_date=timezone.now(),
-                is_active=True
-            )
+                # Determine therapist name and therapist ID cleanly
+                if raw_therapist in id_to_name:
+                    t_id = raw_therapist
+                    t_name = id_to_name[raw_therapist]
+                elif raw_therapist in name_to_id:
+                    t_id = name_to_id[raw_therapist]
+                    t_name = raw_therapist
+                elif raw_therapist_id in id_to_name:
+                    t_id = raw_therapist_id
+                    t_name = id_to_name[raw_therapist_id]
+                else:
+                    t_id = raw_therapist_id
+                    t_name = raw_therapist
+
+                slot_id_val = s_item.get("attended_slot")
+                slot_label_val = s_item.get("slot_label") or slot_label_lookup.get(slot_id_val, "")
+
+                PatientSessionAttendance.objects.create(
+                    registration_number=registration_number,
+                    attendance_date=date_obj,
+                    therapy_id=tid,
+                    therapy_name=ct.get("therapy_name"),
+                    attended_slot=slot_id_val,
+                    slot_label=slot_label_val,
+                    therapist=t_name,
+                    therapist_id=t_id,
+                    is_confirmed=preserved_is_confirmed,
+                    confirmed_by=preserved_confirmed_by,
+                    confirmed_date=preserved_confirmed_date,
+                    sessions_attended=1,
+                    session_id=preserved_session_id,
+                    created_by=employee_id,
+                    created_date=timezone.now(),
+                    is_active=True
+                )
 
         # 3. If attendance_doc exists, update monthly PatientAttendance record
         if attendance_doc:
-            all_month_sessions_qs = PatientSessionAttendance.objects.filter(
-                registration_number=registration_number,
-                attendance_date__range=(date_start_month.date(), date_end_month.date())
-            )
-            all_month_sessions = [r for r in all_month_sessions_qs if r.is_active]
+            all_month_sessions = [
+                r for r in PatientSessionAttendance.objects.filter(registration_number=registration_number)
+                if r.is_active and r.attendance_date and parse_date_only(r.attendance_date) and parse_date_only(r.attendance_date).year == date_obj.year
+                and parse_date_only(r.attendance_date).month == date_obj.month
+            ]
 
             monthly_sessions_map = {}
             for r in all_month_sessions:

@@ -967,3 +967,48 @@ class Notification(AuditModel):
     class Meta:
         db_table = "milestone_backend_notification"
 
+
+class QnaForm(AuditModel):
+    _id = models.ObjectIdField()
+    qa_id = models.CharField(max_length=50, unique=True, blank=True)
+    question = models.TextField()
+    category = models.CharField(max_length=100, default='General')
+    asked_by = models.CharField(max_length=150, blank=True, null=True, default='')
+    registration_number = models.CharField(max_length=50, blank=True, null=True, default='')
+    patient_name = models.CharField(max_length=150, blank=True, null=True, default='')
+    answers = models.JSONField(default=list, blank=True)
+    status = models.CharField(max_length=50, default='Unanswered')
+    is_active = models.BooleanField(default=True)
+
+    def save(self, *args, **kwargs):
+        if not self.qa_id:
+            current_year = datetime.datetime.now().year
+            year_part = f"{current_year % 1000:03d}"  # 2026 -> 026
+            prefix = f"Q{year_part}/"
+            
+            try:
+                from .Views.dbcollection import milestone_db
+                col = milestone_db["milestone_backend_qnaform"]
+                last_doc = col.find_one({"qa_id": {"$regex": f"^{prefix}"}}, sort=[("qa_id", -1)])
+                if last_doc and last_doc.get("qa_id"):
+                    parts = last_doc["qa_id"].split("/")
+                    if len(parts) == 2:
+                        seq = int(parts[1]) + 1
+                    else:
+                        seq = 1
+                else:
+                    seq = 1
+            except Exception:
+                seq = 1
+            
+            self.qa_id = f"{prefix}{seq:07d}"
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.qa_id} - {self.question[:30]}"
+
+    class Meta:
+        db_table = "milestone_backend_qnaform"
+
+

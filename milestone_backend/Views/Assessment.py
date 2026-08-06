@@ -286,20 +286,97 @@ def clinical_psychology_assessment(request):
             )
         return Response(serializer.errors, status=400)
 
-    if request.method == 'PUT':
-        record_id = request.data.get("id") or request.data.get("_id")
-        if not record_id:
-            return Response({"error": "ID is required for update"}, status=400)
+from bson import ObjectId
+import datetime as dt
+from .dbcollection import milestone_db
+
+def sanitize_for_mongo(data):
+    if isinstance(data, dict):
+        return {k: sanitize_for_mongo(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [sanitize_for_mongo(v) for v in data]
+    elif isinstance(data, dt.date) and not isinstance(data, dt.datetime):
+        return dt.datetime.combine(data, dt.time.min)
+    return data
+
+def update_assessment_record(model_class, serializer_class, request):
+    record_id = request.data.get("id") or request.data.get("_id") or request.GET.get("id") or request.GET.get("_id")
+    reg_num = request.data.get("registrationNumber") or request.data.get("registration_number")
+    col_name = model_class._meta.db_table
+
+    doc = None
+    if record_id:
         try:
-            instance = ClinicalPsychologyAssessment.objects.get(pk=record_id)
-        except ClinicalPsychologyAssessment.DoesNotExist:
-            return Response({"error": "Record not found"}, status=404)
-        
-        serializer = ClinicalPsychologyAssessmentSerializer(instance, data=request.data, partial=True)
+            doc = milestone_db[col_name].find_one({"_id": ObjectId(str(record_id))})
+        except Exception:
+            doc = None
+
+    if not doc and reg_num:
+        doc = milestone_db[col_name].find_one({"registrationNumber": reg_num})
+        if not doc:
+            doc = milestone_db[col_name].find_one({"registration_number": reg_num})
+
+    if not doc:
+        if not record_id and not reg_num:
+            return Response({"error": "ID is required for update"}, status=400)
+        return Response({"error": "Record not found"}, status=404)
+
+    target_id = doc["_id"]
+
+    serializer = serializer_class(data=request.data, partial=True)
+    if serializer.is_valid():
+        validated_data = dict(serializer.validated_data)
+        employee_id = get_employee_id(request)
+        validated_data["lastmodified_by"] = employee_id
+        validated_data["lastmodified_date"] = datetime.now()
+
+        mongo_payload = sanitize_for_mongo(validated_data)
+
+        milestone_db[col_name].update_one(
+            {"_id": target_id},
+            {"$set": mongo_payload}
+        )
+
+        updated_doc = milestone_db[col_name].find_one({"_id": target_id})
+        if updated_doc:
+            if "_id" in updated_doc:
+                updated_doc["_id"] = str(updated_doc["_id"])
+                updated_doc["id"] = str(updated_doc["_id"])
+            for k, v in list(updated_doc.items()):
+                if isinstance(v, (datetime, dt.date)):
+                    updated_doc[k] = v.isoformat()
+
+        return Response(updated_doc, status=status.HTTP_200_OK)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'POST', 'PUT'])
+@permission_classes([HasRolePermission])
+def clinical_psychology_assessment(request):
+
+    if request.method == 'GET':
+        from_date = request.GET.get("from_date")
+        to_date = request.GET.get("to_date")
+
+        items = ClinicalPsychologyAssessment.objects.filter(
+            assessment_date__range=[from_date, to_date]
+        ) if from_date and to_date else ClinicalPsychologyAssessment.objects.all()
+
+        return Response(ClinicalPsychologyAssessmentSerializer(items, many=True).data)
+
+    if request.method == 'POST':
+        serializer = ClinicalPsychologyAssessmentSerializer(data=request.data)
         if serializer.is_valid():
-            updated_instance = update_with_audit(serializer, request)
-            return Response(ClinicalPsychologyAssessmentSerializer(updated_instance).data)
+            instance = save_with_audit(serializer, request)
+            return Response(
+                ClinicalPsychologyAssessmentSerializer(instance).data,
+                status=status.HTTP_201_CREATED
+            )
         return Response(serializer.errors, status=400)
+
+    if request.method == 'PUT':
+        return update_assessment_record(ClinicalPsychologyAssessment, ClinicalPsychologyAssessmentSerializer, request)
 
 
 @api_view(['GET', 'POST', 'PUT'])
@@ -327,19 +404,7 @@ def occupational_therapy_assessment(request):
         return Response(serializer.errors, status=400)
 
     if request.method == 'PUT':
-        record_id = request.data.get("id") or request.data.get("_id")
-        if not record_id:
-            return Response({"error": "ID is required for update"}, status=400)
-        try:
-            instance = OccupationalTherapyAssessment.objects.get(pk=record_id)
-        except OccupationalTherapyAssessment.DoesNotExist:
-            return Response({"error": "Record not found"}, status=404)
-        
-        serializer = OccupationalTherapyAssessmentSerializer(instance, data=request.data, partial=True)
-        if serializer.is_valid():
-            updated_instance = update_with_audit(serializer, request)
-            return Response(OccupationalTherapyAssessmentSerializer(updated_instance).data)
-        return Response(serializer.errors, status=400)
+        return update_assessment_record(OccupationalTherapyAssessment, OccupationalTherapyAssessmentSerializer, request)
 
 
 @api_view(['GET', 'POST', 'PUT'])
@@ -367,19 +432,7 @@ def speech_therapy_assessment(request):
         return Response(serializer.errors, status=400)
 
     if request.method == 'PUT':
-        record_id = request.data.get("id") or request.data.get("_id")
-        if not record_id:
-            return Response({"error": "ID is required for update"}, status=400)
-        try:
-            instance = SpeechTherapyAssessment.objects.get(pk=record_id)
-        except SpeechTherapyAssessment.DoesNotExist:
-            return Response({"error": "Record not found"}, status=404)
-        
-        serializer = SpeechTherapyAssessmentSerializer(instance, data=request.data, partial=True)
-        if serializer.is_valid():
-            updated_instance = update_with_audit(serializer, request)
-            return Response(SpeechTherapyAssessmentSerializer(updated_instance).data)
-        return Response(serializer.errors, status=400)
+        return update_assessment_record(SpeechTherapyAssessment, SpeechTherapyAssessmentSerializer, request)
 
 
 @api_view(['GET', 'POST', 'PUT'])
@@ -407,19 +460,7 @@ def physiotherapy_assessment(request):
         return Response(serializer.errors, status=400)
 
     if request.method == 'PUT':
-        record_id = request.data.get("id") or request.data.get("_id")
-        if not record_id:
-            return Response({"error": "ID is required for update"}, status=400)
-        try:
-            instance = PhysiotherapyAssessment.objects.get(pk=record_id)
-        except PhysiotherapyAssessment.DoesNotExist:
-            return Response({"error": "Record not found"}, status=404)
-        
-        serializer = PhysiotherapyAssessmentSerializer(instance, data=request.data, partial=True)
-        if serializer.is_valid():
-            updated_instance = update_with_audit(serializer, request)
-            return Response(PhysiotherapyAssessmentSerializer(updated_instance).data)
-        return Response(serializer.errors, status=400)
+        return update_assessment_record(PhysiotherapyAssessment, PhysiotherapyAssessmentSerializer, request)
 
 @api_view(['GET', 'POST'])
 @permission_classes([HasRolePermission])

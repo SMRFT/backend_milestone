@@ -709,7 +709,7 @@ class HistoryRecordingSheetSerializer(SafeJsonFieldsMixin, serializers.ModelSeri
 
 from .models import ClinicalPsychologyAssessment
 class ClinicalPsychologyAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
-    id = ObjectIdField(read_only=True)
+    id = ObjectIdField(source='_id', read_only=True)
     json_fields = ['behaviour_problems', 'general_temperament', 'behavioral_observation', 'assessments_used']
     class Meta:
         model = ClinicalPsychologyAssessment
@@ -717,6 +717,11 @@ class ClinicalPsychologyAssessmentSerializer(SafeJsonFieldsMixin, serializers.Mo
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        pk_val = str(getattr(instance, 'pk', None) or getattr(instance, '_id', None) or getattr(instance, 'id', None) or '')
+        if pk_val:
+            data["id"] = pk_val
+            data["_id"] = pk_val
+
         reg_num = data.get("registrationNumber")
         assessment_date = data.get("assessment_date")
         demo = get_demographics_by_registration(reg_num, ref_date=assessment_date)
@@ -743,7 +748,7 @@ class ClinicalPsychologyAssessmentSerializer(SafeJsonFieldsMixin, serializers.Mo
 
 from .models import OccupationalTherapyAssessment
 class OccupationalTherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
-    id = ObjectIdField(read_only=True)
+    id = ObjectIdField(source='_id', read_only=True)
     json_fields = ['motor_skills', 'handwriting_skills', 'cognitive_concepts', 'visual_perceptual_skills', 'sensory_profile', 'adl_evaluation', 'assessments_used']
     class Meta:
         model = OccupationalTherapyAssessment
@@ -751,6 +756,11 @@ class OccupationalTherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.M
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        pk_val = str(getattr(instance, 'pk', None) or getattr(instance, '_id', None) or getattr(instance, 'id', None) or '')
+        if pk_val:
+            data["id"] = pk_val
+            data["_id"] = pk_val
+
         reg_num = data.get("registrationNumber")
         assessment_date = data.get("assessment_date")
         demo = get_demographics_by_registration(reg_num, ref_date=assessment_date)
@@ -777,7 +787,7 @@ class OccupationalTherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.M
 
 from .models import SpeechTherapyAssessment
 class SpeechTherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
-    id = ObjectIdField(read_only=True)
+    id = ObjectIdField(source='_id', read_only=True)
     json_fields = ['oral_peripheral_mechanism', 'vegetative_skills', 'speech_parameters', 'communication_profile', 'linguistic_profile', 'assessments_used']
     class Meta:
         model = SpeechTherapyAssessment
@@ -785,6 +795,11 @@ class SpeechTherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSe
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        pk_val = str(getattr(instance, 'pk', None) or getattr(instance, '_id', None) or getattr(instance, 'id', None) or '')
+        if pk_val:
+            data["id"] = pk_val
+            data["_id"] = pk_val
+
         reg_num = data.get("registrationNumber")
         assessment_date = data.get("assessment_date")
         demo = get_demographics_by_registration(reg_num, ref_date=assessment_date)
@@ -811,7 +826,7 @@ class SpeechTherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSe
 
 from .models import PhysiotherapyAssessment
 class PhysiotherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):
-    id = ObjectIdField(read_only=True)
+    id = ObjectIdField(source='_id', read_only=True)
     json_fields = ['on_observation', 'tone', 'motor_system', 'clonus', 'coordination', 'pattern_and_position', 'limb_length_discrepancy', 'balance', 'sensation', 'assessments_used', 'gross_development', 'reflexes']
     class Meta:
         model = PhysiotherapyAssessment
@@ -819,6 +834,11 @@ class PhysiotherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSe
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        pk_val = str(getattr(instance, 'pk', None) or getattr(instance, '_id', None) or getattr(instance, 'id', None) or '')
+        if pk_val:
+            data["id"] = pk_val
+            data["_id"] = pk_val
+
         reg_num = data.get("registrationNumber")
         assessment_date = data.get("assessment_date")
         demo = get_demographics_by_registration(reg_num, ref_date=assessment_date)

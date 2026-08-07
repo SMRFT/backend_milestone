@@ -541,7 +541,8 @@ def get_employee_details(employee_id):
     details = {
         "created_by_name": "Ms. Sivashankari",
         "created_by_qualification": "",
-        "created_by_designation": ""
+        "created_by_designation": "",
+        "created_by_signature": ""
     }
     if not employee_id:
         return details
@@ -555,13 +556,29 @@ def get_employee_details(employee_id):
         db = client["Global"]
         col = db["backend_diagnostics_profile"]
         
-        doc = col.find_one({"employeeId": str(employee_id)})
+        emp_id_str = str(employee_id).strip()
+        or_list = [
+            {"employeeId": emp_id_str},
+            {"employee_id": emp_id_str},
+            {"user_id": emp_id_str},
+            {"id": emp_id_str}
+        ]
+        if emp_id_str.isdigit():
+            emp_id_int = int(emp_id_str)
+            or_list.extend([
+                {"employeeId": emp_id_int},
+                {"employee_id": emp_id_int},
+                {"user_id": emp_id_int},
+                {"id": emp_id_int}
+            ])
+            
+        doc = col.find_one({"$or": or_list})
         if doc:
             # Name
-            name = doc.get("employeeName") or ""
-            name = name.strip()
+            name = doc.get("employeeName") or doc.get("name") or doc.get("full_name") or doc.get("fullName") or ""
+            name = str(name).strip()
             gender = (doc.get("gender") or "").strip().lower()
-            if name and not any(name.startswith(p) for p in ["Ms. ", "Mrs. ", "Mr. ", "Dr. "]):
+            if name and not any(name.startswith(p) for p in ["Ms. ", "Mrs. ", "Mr. ", "Dr. ", "Ms.", "Mrs.", "Mr.", "Dr."]):
                 if gender == "female":
                     name = f"Ms. {name}"
                 elif gender == "male":
@@ -570,43 +587,57 @@ def get_employee_details(employee_id):
                 details["created_by_name"] = name
             
             # Qualifications
-            quals = doc.get("qualifications") or []
+            quals = doc.get("qualifications") or doc.get("qualification") or []
             qual_list = []
             if isinstance(quals, list):
                 for q in quals:
-                    if isinstance(q, dict) and q.get("degree"):
-                        qual_list.append(q["degree"].strip())
+                    if isinstance(q, dict) and (q.get("degree") or q.get("title") or q.get("name")):
+                        qual_list.append((q.get("degree") or q.get("title") or q.get("name")).strip())
+                    elif isinstance(q, str) and q.strip():
+                        qual_list.append(q.strip())
+            elif isinstance(quals, str) and quals.strip():
+                qual_list.append(quals.strip())
+
             if qual_list:
                 details["created_by_qualification"] = ", ".join(qual_list)
             else:
                 details["created_by_qualification"] = ""
             
-            # Designation get from milestone_backend_consultingdoctor
-            try:
-                from .models import ConsultingDoctor
-                doc_cd = ConsultingDoctor.objects.filter(employee_id=str(employee_id)).first()
-                if doc_cd and doc_cd.designation:
-                    details["created_by_designation"] = doc_cd.designation.strip()
-            except Exception as e:
-                print(f"Error querying ConsultingDoctor via Django ORM: {e}")
+            # Signature Image / URL
+            sig = doc.get("signature") or doc.get("uploadSignature") or doc.get("signature_url") or doc.get("employeeSignature") or doc.get("upload_signature") or doc.get("signaturePath") or ""
+            if sig:
+                details["created_by_signature"] = str(sig).strip()
 
+            # Designation
+            if doc.get("designation"):
+                details["created_by_designation"] = str(doc.get("designation")).strip()
+                
             if not details.get("created_by_designation"):
                 try:
-                    db_milestone = client[os.environ.get("MILESTONE_DB_NAME", "Milestone")]
-                    col_cd = db_milestone["milestone_backend_consultingdoctor"]
-                    doc_cd = col_cd.find_one({"employee_id": str(employee_id)})
-                    if doc_cd and doc_cd.get("designation"):
-                        details["created_by_designation"] = doc_cd["designation"].strip()
+                    from .models import ConsultingDoctor
+                    doc_cd = ConsultingDoctor.objects.filter(employee_id=emp_id_str).first()
+                    if doc_cd and doc_cd.designation:
+                        details["created_by_designation"] = doc_cd.designation.strip()
                 except Exception as e:
-                    print(f"Error querying milestone_backend_consultingdoctor via PyMongo: {e}")
+                    print(f"Error querying ConsultingDoctor via Django ORM: {e}")
+
+                if not details.get("created_by_designation"):
+                    try:
+                        db_milestone = client[os.environ.get("MILESTONE_DB_NAME", "Milestone")]
+                        col_cd = db_milestone["milestone_backend_consultingdoctor"]
+                        doc_cd = col_cd.find_one({"$or": [{"employee_id": emp_id_str}, {"employee_id": int(emp_id_str) if emp_id_str.isdigit() else emp_id_str}]})
+                        if doc_cd and doc_cd.get("designation"):
+                            details["created_by_designation"] = doc_cd["designation"].strip()
+                    except Exception as e:
+                        print(f"Error querying milestone_backend_consultingdoctor via PyMongo: {e}")
         else:
-            # Profile not found, fallback to milestone_backend_consultingdoctor
+            # Profile not found by employeeId in backend_diagnostics_profile, fallback to ConsultingDoctor
             details["created_by_qualification"] = ""
             details["created_by_designation"] = ""
             
             try:
                 from .models import ConsultingDoctor
-                doc_cd = ConsultingDoctor.objects.filter(employee_id=str(employee_id)).first()
+                doc_cd = ConsultingDoctor.objects.filter(employee_id=emp_id_str).first()
                 if doc_cd:
                     if doc_cd.name:
                         details["created_by_name"] = doc_cd.name.strip()
@@ -619,7 +650,7 @@ def get_employee_details(employee_id):
                 try:
                     db_milestone = client[os.environ.get("MILESTONE_DB_NAME", "Milestone")]
                     col_cd = db_milestone["milestone_backend_consultingdoctor"]
-                    doc_cd = col_cd.find_one({"employee_id": str(employee_id)})
+                    doc_cd = col_cd.find_one({"$or": [{"employee_id": emp_id_str}, {"employee_id": int(emp_id_str) if emp_id_str.isdigit() else emp_id_str}]})
                     if doc_cd:
                         if doc_cd.get("name"):
                             details["created_by_name"] = doc_cd["name"].strip()
@@ -705,6 +736,7 @@ class HistoryRecordingSheetSerializer(SafeJsonFieldsMixin, serializers.ModelSeri
         data["created_by_name"] = emp_details.get("created_by_name")
         data["created_by_qualification"] = emp_details.get("created_by_qualification")
         data["created_by_designation"] = emp_details.get("created_by_designation") or "Clinical Director / Psychologist"
+        data["created_by_signature"] = emp_details.get("created_by_signature", "")
         return data
 
 from .models import ClinicalPsychologyAssessment
@@ -744,6 +776,7 @@ class ClinicalPsychologyAssessmentSerializer(SafeJsonFieldsMixin, serializers.Mo
         data["created_by_name"] = emp_details.get("created_by_name")
         data["created_by_qualification"] = emp_details.get("created_by_qualification")
         data["created_by_designation"] = emp_details.get("created_by_designation") or "Psychologist"
+        data["created_by_signature"] = emp_details.get("created_by_signature", "")
         return data
 
 from .models import OccupationalTherapyAssessment
@@ -783,6 +816,7 @@ class OccupationalTherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.M
         data["created_by_name"] = emp_details.get("created_by_name")
         data["created_by_qualification"] = emp_details.get("created_by_qualification")
         data["created_by_designation"] = emp_details.get("created_by_designation") or "Occupational Therapist"
+        data["created_by_signature"] = emp_details.get("created_by_signature", "")
         return data
 
 from .models import SpeechTherapyAssessment
@@ -822,6 +856,7 @@ class SpeechTherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSe
         data["created_by_name"] = emp_details.get("created_by_name")
         data["created_by_qualification"] = emp_details.get("created_by_qualification")
         data["created_by_designation"] = emp_details.get("created_by_designation") or "Speech Therapist"
+        data["created_by_signature"] = emp_details.get("created_by_signature", "")
         return data
 
 from .models import PhysiotherapyAssessment
@@ -861,6 +896,7 @@ class PhysiotherapyAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSe
         data["created_by_name"] = emp_details.get("created_by_name")
         data["created_by_qualification"] = emp_details.get("created_by_qualification")
         data["created_by_designation"] = emp_details.get("created_by_designation") or "Physiotherapist"
+        data["created_by_signature"] = emp_details.get("created_by_signature", "")
         return data
         
 from .models import AssessmentAnalysis
@@ -893,6 +929,7 @@ class AssessmentAnalysisSerializer(SafeJsonFieldsMixin, serializers.ModelSeriali
         data["created_by_name"] = emp_details.get("created_by_name")
         data["created_by_qualification"] = emp_details.get("created_by_qualification")
         data["created_by_designation"] = emp_details.get("created_by_designation") or "Clinical Director / Psychologist"
+        data["created_by_signature"] = emp_details.get("created_by_signature", "")
         return data
 
 class GoalsAssessmentSerializer(SafeJsonFieldsMixin, serializers.ModelSerializer):

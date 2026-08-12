@@ -1675,3 +1675,61 @@ class BehavioralObservationOptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = BehavioralObservationOption
         fields = ['id', 'name']
+
+
+from rest_framework import serializers
+from .models import CrossConsultationPlan, CrossTherapyRecommendation, RECOMMENDATION_ROLES
+
+
+class CrossConsultationPlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CrossConsultationPlan
+        fields = [
+            "id",
+            "registration_number",
+            "patient_name",
+            "age_sex",
+            "entries",
+            "created_by",
+            "created_date",
+            "lastmodified_by",
+            "lastmodified_date",
+        ]
+        read_only_fields = ["created_by", "created_date", "lastmodified_by", "lastmodified_date"]
+
+
+class CrossTherapyRecommendationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CrossTherapyRecommendation
+        fields = [
+            "id",
+            "registration_number",
+            "patient_name",
+            "age_sex",
+            "recommendations",
+            "created_by",
+            "created_date",
+            "lastmodified_by",
+            "lastmodified_date",
+        ]
+        read_only_fields = ["created_by", "created_date", "lastmodified_by", "lastmodified_date"]
+
+    def validate_recommendations(self, value):
+        for row in value:
+            role = row.get("recommendation_by")
+            if role and role not in RECOMMENDATION_ROLES:
+                raise serializers.ValidationError(
+                    f"'{role}' is not a valid recommendation_by role. "
+                    f"Expected one of: {', '.join(RECOMMENDATION_ROLES)}"
+                )
+        return value
+    
+
+
+from rest_framework import serializers
+from .models import CrossTherapyRecommendation
+
+class CrossTherapyRecommendationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CrossTherapyRecommendation
+        fields = '__all__'

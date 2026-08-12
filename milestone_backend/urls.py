@@ -142,4 +142,12 @@ urlpatterns = [
 
     #Enquiry form
     path('enquiryform/', appoinmentschedule.enquiryform, name='enquiryform'),
+
+
+
+    
+ 
+    # Cross Therapy Recommendation Form
+   path('save-cross-therapy-recommendation/', views.save_cross_therapy_recommendation, name='save-cross-therapy-recommendation'),
+    path('get-cross-therapy-recommendation/<str:registration_number>/', views.get_cross_therapy_recommendation, name='get-cross-therapy-recommendation'),
 ]

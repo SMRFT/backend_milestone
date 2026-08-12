@@ -76,8 +76,10 @@ def getMCHATResponse(request, registration_number):
     Fetch M-CHAT-R responses for a given patient using their registration number.
     """
     try:
-        response = MCHATResponse.objects.get(registration_number=registration_number)
+        response = MCHATResponse.objects.filter(registration_number=registration_number).order_by('-created_date').first()
+        if not response:
+            return Response({"error": "No data found for this registration number"}, status=status.HTTP_404_NOT_FOUND)
         serializer = MCHATResponseSerializer(response)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    except MCHATResponse.DoesNotExist:
-        return Response({"error": "No data found for this registration number"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": f"An error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

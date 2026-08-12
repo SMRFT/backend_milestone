@@ -19,6 +19,13 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/update-patient/.*':'MDC-P-PTE',
     '/_b_a_c_k_e_n_d/Milestone/update-doctor(?:/[^/]+)+/$':'MDC-P-RDE',
     '/_b_a_c_k_e_n_d/Milestone/update-employeeDr(?:/[^/]+)+/$':'MDC-P-CDE',
+    '/_b_a_c_k_e_n_d/Milestone/submit_cbcl/[^/]+/?(\?.*)?$':'MDC-P-SCD',
+    r'/_b_a_c_k_e_n_d/Milestone/get-assessments/?(\?.*)?$':'MDC-P-GA',
+    r'/_b_a_c_k_e_n_d/Milestone/get-cbcl/?(\?.*)?$':'MDC-P-CBCL',
+    r'/_b_a_c_k_e_n_d/Milestone/get-cbcl/[^/]+/?(\?.*)?$':'MDC-P-GCBCL',
+    r'/_b_a_c_k_e_n_d/Milestone/CBCLgirlsassessment/?(\?.*)?$':'MDC-P-GA',
+    r'/_b_a_c_k_e_n_d/Milestone/save-mchat-response/?(\?.*)?$':'MDC-P-SMCH',
+    r'/_b_a_c_k_e_n_d/Milestone/get-mchat/.*':'MDC-P-GMC',
     
     #attendance
     '/_b_a_c_k_e_n_d/Milestone/pending-payments/':'MDC-P-PNPR',
@@ -30,6 +37,7 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/edit_patient_attendance/':'MDC-API-AT',
     '/_b_a_c_k_e_n_d/Milestone/delete_patient_attendance/':'MDC-API-AT',
     "/_b_a_c_k_e_n_d/Milestone/get_all_patient_details/":'MDC-API-AT',
+     
     
     "/_b_a_c_k_e_n_d/Milestone/get_pending_attendance_requests/":'MDC-API-ADM',
     "/_b_a_c_k_e_n_d/Milestone/attendance-update/":'MDC-API-ADM',

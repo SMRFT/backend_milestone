@@ -284,7 +284,7 @@ class CBCL(AuditModel):
     table7 = models.JSONField(default=dict)
 
     def __str__(self):
-        return self.patient_name
+        return getattr(self, 'childName', getattr(self, 'patient_name', 'CBCL Report'))
 
 
 
@@ -1012,3 +1012,94 @@ class QnaForm(AuditModel):
         db_table = "milestone_backend_qnaform"
 
 
+
+
+
+
+from django.db import models
+
+
+RECOMMENDATION_ROLES = [
+    "OT Therapist",
+    "Physiotherapist",
+    "Speech Therapist",
+    "Clinical Psychologist",
+    "Special Educator",
+    "Pediatrician",
+    "Psychiatrist",
+]
+
+
+class CrossConsultationPlan(AuditModel):
+    """
+    'Cross Consultan & Follow up Plan' form.
+    One record per patient; `entries` grows over time (Date | Plan rows).
+    """
+    registration_number = models.CharField(max_length=50, unique=True, db_index=True)
+    patient_name = models.CharField(max_length=255)
+    age_sex = models.CharField(max_length=50, blank=True, null=True)
+
+    # entries: [{ "date": "2025-06-10", "plan": "Behaviour modification to be started",
+    #             "created_by": "60380", "created_date": "..." }, ...]
+    entries = models.JSONField(default=list, blank=True)
+
+    
+   
+    def __str__(self):
+        return f"{self.registration_number} - {self.patient_name}"
+
+
+
+
+class CrossTherapyRecommendation(AuditModel):
+    """
+    'Cross Therapy Recommendation Form'.
+    One record per patient; `recommendations` grows over time, each row tagged
+    with a fixed role (recommendation_by) plus free-text recommendation + date.
+    """
+    registration_number = models.CharField(max_length=50, unique=True, db_index=True)
+    patient_name = models.CharField(max_length=255)
+    age_sex = models.CharField(max_length=50, blank=True, null=True)
+
+    # recommendations: [{ "recommendation_by": "Special Educator",
+    #                      "recommendation": "Regular class weekdays, once/week special educator till December",
+    #                      "date": "2025-10-09", "created_by": "50848", "created_date": "..." }, ...]
+    recommendations = models.JSONField(default=list, blank=True)
+ 
+   
+    def __str__(self):
+        return f"{self.registration_number} - {self.patient_name}"
+    
+
+
+from django.db import models
+
+class CrossTherapyRecommendation(AuditModel):
+    registration_number = models.CharField(max_length=50, unique=True)  # links back to patient
+    patient_name = models.CharField(max_length=255)
+    age = models.CharField(max_length=20, blank=True, null=True)
+    sex = models.CharField(max_length=10, blank=True, null=True)
+
+    ot_therapist_recommendation = models.TextField(blank=True, null=True)
+    ot_therapist_date = models.CharField(max_length=20, blank=True, null=True)
+
+    physiotherapist_recommendation = models.TextField(blank=True, null=True)
+    physiotherapist_date = models.CharField(max_length=20, blank=True, null=True)
+
+    speech_therapist_recommendation = models.TextField(blank=True, null=True)
+    speech_therapist_date = models.CharField(max_length=20, blank=True, null=True)
+
+    clinical_psychologist_recommendation = models.TextField(blank=True, null=True)
+    clinical_psychologist_date = models.CharField(max_length=20, blank=True, null=True)
+
+    special_educator_recommendation = models.TextField(blank=True, null=True)
+    special_educator_date = models.CharField(max_length=20, blank=True, null=True)
+
+    pediatrician_recommendation = models.TextField(blank=True, null=True)
+    pediatrician_date = models.CharField(max_length=20, blank=True, null=True)
+
+    psychiatrist_recommendation = models.TextField(blank=True, null=True)
+    psychiatrist_date = models.CharField(max_length=20, blank=True, null=True)
+
+   
+   

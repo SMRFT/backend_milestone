@@ -284,7 +284,7 @@ class CBCL(AuditModel):
     table7 = models.JSONField(default=dict)
 
     def __str__(self):
-        return self.patient_name
+        return getattr(self, 'childName', getattr(self, 'patient_name', 'CBCL Report'))
 
 
 

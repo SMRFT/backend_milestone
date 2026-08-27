@@ -22,7 +22,6 @@ PAGE_MAPPING = {
     '/_b_a_c_k_e_n_d/Milestone/submit_cbcl/[^/]+/?(\?.*)?$':'MDC-P-SCD',
     r'/_b_a_c_k_e_n_d/Milestone/get-assessments/?(\?.*)?$':'MDC-P-GA',
     r'/_b_a_c_k_e_n_d/Milestone/get-cbcl/?(\?.*)?$':'MDC-P-CBCL',
-    r'/_b_a_c_k_e_n_d/Milestone/get-cbcl/[^/]+/?(\?.*)?$':'MDC-P-GCBCL',
     r'/_b_a_c_k_e_n_d/Milestone/CBCLgirlsassessment/?(\?.*)?$':'MDC-P-GA',
     r'/_b_a_c_k_e_n_d/Milestone/save-mchat-response/?(\?.*)?$':'MDC-P-SMCH',
     r'/_b_a_c_k_e_n_d/Milestone/get-mchat/.*':'MDC-P-GMC',

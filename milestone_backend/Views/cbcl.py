@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.decorators import api_view , permission_classes
 from rest_framework import status
@@ -14,8 +15,8 @@ def submit_cbcl(request):
         serializer = CBCLSerializer(data=request.data)
         
         if serializer.is_valid():
-            # Save the data to the database
-            serializer.save()
+            employee_id = request.data.get("auth-user-id")
+            serializer.save(created_by=employee_id, created_date=timezone.now())
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -24,12 +25,21 @@ def submit_cbcl(request):
 @permission_classes([HasRolePermission])
 def get_cbcl_data(request, childName=None):
     try:
-        # Check if childName is provided as a URL parameter
+        from_date = request.GET.get('from_date') or request.GET.get('fromDate')
+        to_date = request.GET.get('to_date') or request.GET.get('toDate')
+
+        cbcl_data = CBCL.objects.all()
+
         if childName:
-            cbcl_data = CBCL.objects.filter(childName=childName)
-        else:
-            # Fallback to all data if no patient_name is provided
-            cbcl_data = CBCL.objects.all()
+            filtered = cbcl_data.filter(childName__iexact=childName)
+            if not filtered.exists():
+                filtered = cbcl_data.filter(childName__icontains=childName)
+            cbcl_data = filtered
+
+        if from_date:
+            cbcl_data = cbcl_data.filter(dateOfAssessment__gte=from_date)
+        if to_date:
+            cbcl_data = cbcl_data.filter(dateOfAssessment__lte=to_date)
 
         serializer = CBCLSerializer(cbcl_data, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
